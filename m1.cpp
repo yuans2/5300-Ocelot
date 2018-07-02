@@ -1,0 +1,354 @@
+#include<iostream>
+#include<sstream>
+#include<string>
+#include "SQLParser.h"
+
+std::string translateExpression(const hsql::Expr* expression);
+std::string translateSelect(const hsql::SelectStatement* selectStatement);
+std::string translateTableRefInfo(const hsql::TableRef* table);
+
+/*
+ * Translate Operator Expression
+ *
+ * Format: expression->expr OPERATOR expression->expr2
+ * 
+ * e.g. expr < expr2
+ *      expr AND expr2
+ *      expr OR expr2
+ *      NOT expr
+ */
+
+std::string translateOperatorExpression(const hsql::Expr* expression)
+{
+	if (expression == NULL)
+	{
+		return "";
+	}
+
+	std::ostringstream stringStream;
+
+	switch(expression->opType)
+	{
+		case hsql::Expr::SIMPLE_OP:
+		{
+			stringStream << translateExpression(expression->expr) << " " << expression->opChar << " ";
+			break;
+		}
+		case hsql::Expr::AND:
+		{
+			stringStream << translateExpression(expression->expr) << " " << "AND ";
+			break;
+		}
+		case hsql::Expr::OR:
+		{
+			stringStream << translateExpression(expression->expr) << " " << "OR ";
+			break;
+		}
+		case hsql::Expr::NOT:
+		{
+			stringStream << "NOT " << translateExpression(expression->expr);
+			break;
+		}
+		default:
+		{
+			stringStream << "Unknown opType: " << expression->opType;
+			break;
+		}
+	}
+
+	if (expression->expr2 != NULL)
+	{
+		stringStream << translateExpression(expression->expr2);
+	}
+
+	return stringStream.str();
+}
+
+/*
+ * Translate Expr expression
+ *
+ * Expression can be:
+ *
+ *   *: SELECT *
+ *   tableName.columnName: foo.x
+ *   LiteralString: "FOO"
+ *   LiteralInt: 1
+ *   ExpressionOperator: f.id = g.id
+ *
+*/
+std::string translateExpression(const hsql::Expr* expression)
+{
+	std::ostringstream stringStream;
+
+	switch(expression->type)
+	{
+		/* 
+		 * kExprStar
+		 * e.g. SELECT * FROM ...
+		 */
+		case hsql::kExprStar:
+		{
+			stringStream << "*";
+			break;
+		}
+		/*
+		 * kExprColumnRef:
+		 * e.g. SELECT a, b, g.c FROM ...
+		 */
+		case hsql::kExprColumnRef:
+		{
+			if (expression->table != NULL)
+			{
+				stringStream << expression->table << ".";
+			}
+
+			stringStream << expression->name;
+			break;
+
+		}
+		case hsql::kExprLiteralString:
+		{
+			stringStream << expression->name;
+			break;
+		}
+		case hsql::kExprLiteralFloat:
+		{
+			stringStream << expression->fval;
+			break;
+		}
+		case hsql::kExprLiteralInt:
+		{
+			stringStream << expression->ival;
+			break;
+		}
+		case hsql::kExprOperator:
+		{
+			stringStream << translateOperatorExpression(expression);
+			break;
+		}
+		default:
+		{
+			stringStream << "Unsupported expression type:" << expression->type;
+		}
+	}
+
+	if (expression->alias != NULL)
+	{
+		stringStream << "AS " << expression->alias;
+	}
+
+	return stringStream.str();
+}
+
+/*
+ * Translate Join Definition
+ *
+ * joinDefinition->left JOINTYPE joinDefinition->right ON joinDefinition->condition
+ *
+ */
+std::string translateJoin(const hsql::JoinDefinition* joinDefinition)
+{
+	std::ostringstream stringStream;
+
+	std::string leftTable = translateTableRefInfo(joinDefinition->left);
+	std::string rightTable = translateTableRefInfo(joinDefinition->right);
+
+	stringStream << leftTable << " ";
+
+	switch(joinDefinition->type)
+	{
+		case hsql::kJoinInner:
+		{
+			stringStream << "INNER JOIN ";
+			break;
+		}
+		case hsql::kJoinOuter:
+		{
+			stringStream << "OUTER JOIN ";
+			break;
+		}
+		case hsql::kJoinLeft:
+		{
+			stringStream << "LEFT JOIN ";
+			break;
+		}
+		case hsql::kJoinRight:
+		{
+			stringStream << "RIGHT JOIN ";
+			break;
+		}
+		case hsql::kJoinLeftOuter:
+		{
+			stringStream << "LEFT OUTER JOIN ";
+			break;
+		}
+		case hsql::kJoinRightOuter:
+		{
+			stringStream << "RIGHT OUTER JOIN ";
+			break;
+		}
+		case hsql::kJoinCross:
+		{
+			stringStream << "CROSS JOIN ";
+			break;
+		}
+		default:
+		{
+			stringStream << "UNKNOWN JOIN ";
+			break;
+		}
+	}
+
+	stringStream << translateTableRefInfo(joinDefinition->right) << " ";
+	stringStream << "ON " << translateExpression(joinDefinition->condition);
+
+	return stringStream.str();
+}
+
+/*
+ * Translate TableRefInfo
+ *
+ *
+ */
+
+std::string translateTableRefInfo(const hsql::TableRef* table)
+{
+	std::ostringstream stringStream;
+
+	switch(table->type)
+	{
+		case hsql::kTableName:
+		{
+			stringStream << table->name;
+			break;
+		}
+		case hsql::kTableSelect:
+		{
+			stringStream << translateSelect(table->select);
+			break;
+		}
+		case hsql::kTableJoin:
+		{
+			stringStream << translateJoin(table->join) << " ";
+			break;
+		}
+		case hsql::kTableCrossProduct:
+		{
+			for(int i = 0; i < table->list->size() - 1; i++)
+			{
+				stringStream << translateTableRefInfo(table->list->at(i)) << ", ";
+			}
+
+			stringStream << translateTableRefInfo(table->list->back()) << " ";
+			break;
+		}
+		default:
+		{
+			stringStream << "Unsupported TableRef: " << table->type;
+		}
+	}
+
+	if (table->alias != NULL)
+	{
+		stringStream << " AS " << table->alias;
+	}
+
+	return stringStream.str();
+}
+
+
+/*
+ * Translate SELECT statement
+ *
+ * SELECT <# selectStatement->(Expr)selectList >
+ * FROM <# selectStatement->(TableRef)fromTable >
+ * WHERE <# selectStatement->(Expr)whereClause >
+ *
+*/
+std::string translateSelect(const hsql::SelectStatement* selectStatement)
+{
+	std::ostringstream stringStream;
+
+	// SELECT
+	stringStream << "SELECT ";
+
+	// Deal with one (no ',') or multiple elements (with ',') in selectList
+	for (int i = 0; i < selectStatement->selectList->size() - 1; i++)
+	{
+		stringStream << translateExpression(selectStatement->selectList->at(i)) << ", ";
+	}
+	
+	stringStream << translateExpression(selectStatement->selectList->back()) << " ";
+
+
+	// FROM
+	stringStream << "FROM " << translateTableRefInfo(selectStatement->fromTable);
+
+
+	// WHERE
+	if (selectStatement->whereClause != NULL)
+	{
+		stringStream << " WHERE " << translateExpression(selectStatement->whereClause) << " ";
+	}
+
+	return stringStream.str();
+}
+
+std::string executeCreate(const hsql::CreateStatement* createStatement)
+{
+	return "";
+}
+
+
+std::string execute(const hsql::SQLStatement* sqlStatement)
+{
+	if (sqlStatement == NULL)
+	{
+		return "hsql::SQLStatement* is NULL";
+	}
+
+	switch(sqlStatement->type())
+	{
+		case hsql::kStmtSelect:
+		{
+			return translateSelect((const hsql::SelectStatement*)sqlStatement);
+		}
+		case hsql::kStmtCreate:
+		{
+			return executeCreate((const hsql::CreateStatement*)sqlStatement);
+		}
+		default:
+		{
+			return "Unsupported query, currently only supports Create and Select";
+		}
+
+	}
+	
+}
+
+void Translate(std::string query)
+{
+	hsql::SQLParserResult* result = hsql::SQLParser::parseSQLString(query);
+
+	if (result->isValid())
+	{
+		std::cout << execute(result->getStatement(0)) << std::endl;
+	}
+	else
+	{
+		std::cout << "Invalid SQL: " << query << std::endl;
+	}
+}
+
+int main()
+{
+	Translate("select * from foo left join goober on foo.x=goober.x");
+	Translate("select * from foo as f left join goober on f.x = goober.x");
+	Translate("select * from foo as f left join goober as g on f.x = g.x");
+	Translate("select a,b,g.c from foo as f, goo as g");
+	Translate("select a,b,c from foo where foo.b > foo.c + 6");
+	Translate("select f.a,g.b,h.c from foo as f join goober as g on f.id = g.id where f.z >1");
+	Translate("foo bar blaz");
+
+	return 0;
+}

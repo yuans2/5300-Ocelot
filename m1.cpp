@@ -294,9 +294,95 @@ std::string translateSelect(const hsql::SelectStatement* selectStatement)
 	return stringStream.str();
 }
 
+/*
+ * Translate Column Definition
+ *
+ * Name Type  
+ *
+*/
+std::string translateColumnDefinition(const hsql::ColumnDefinition* columnDefinition)
+{
+	if (columnDefinition == NULL)
+	{
+		return "";
+	}
+
+	std::ostringstream stringStream;
+
+	stringStream << columnDefinition->name << " ";
+
+	switch(columnDefinition->type)
+	{
+		case hsql::ColumnDefinition::TEXT:
+		{
+			stringStream << "TEXT";
+			break;
+		}
+		case hsql::ColumnDefinition::INT:
+		{
+			stringStream << "INT";
+			break;
+		}
+		case hsql::ColumnDefinition::DOUBLE:
+		{
+			stringStream << "DOUBLE";
+			break;
+		}
+		default:
+		{
+			stringStream << "UNKNOWN";
+		}
+	}
+
+	return stringStream.str();
+}
+
+/*
+ * Translate Column Definitions
+ *
+ * (Name1 Type, Name2 Type, ...)  
+ *
+*/
+std::string translateColumnDefinitions(const std::vector<hsql::ColumnDefinition*>* columns)
+{
+	if (columns == NULL || columns->size() == 0)
+	{
+		return "";
+	}
+
+	std::ostringstream stringStream;
+
+	stringStream << "(";
+
+	for (int i = 0; i < columns->size() - 1; i++)
+	{
+		hsql::ColumnDefinition* columnDefinition = columns->at(i);
+		stringStream << translateColumnDefinition(columnDefinition) << ", ";		
+	}
+
+	stringStream << translateColumnDefinition(columns->back()) << ")";
+
+	return stringStream.str();
+}
+
+/*
+ * Translate Create Statement
+ *
+ * CREATE TABLE tableName (Name1 Type, Name2 Type, ...)  
+ *
+*/
 std::string executeCreate(const hsql::CreateStatement* createStatement)
 {
-	return "";
+	std::ostringstream stringStream;
+
+	stringStream << "CREATE TABLE " << createStatement->tableName;
+
+	if (createStatement->columns != NULL && createStatement->columns->size() > 0)
+	{
+		stringStream << " " << translateColumnDefinitions(createStatement->columns);
+	}
+
+	return stringStream.str();
 }
 
 
@@ -349,6 +435,7 @@ int main()
 	Translate("select a,b,c from foo where foo.b > foo.c + 6");
 	Translate("select f.a,g.b,h.c from foo as f join goober as g on f.id = g.id where f.z >1");
 	Translate("foo bar blaz");
+	Translate("create table foo (a text, b integer, c double)");
 
 	return 0;
 }

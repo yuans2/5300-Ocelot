@@ -34,7 +34,15 @@ int main(int argc, char *argv[])
 
 		std::string query;
 		std::getline(std::cin, query);
+
+		if (query.length() == 0)
+		{
+			continue;
+		}
+
+		// Convert to lower case
 		std::transform(query.begin(), query.end(), query.begin(), ::tolower);
+
 
 		if (query == "quit")
 		{

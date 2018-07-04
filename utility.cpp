@@ -1,11 +1,4 @@
-#include<iostream>
-#include<sstream>
-#include<string>
-#include "SQLParser.h"
-
-std::string translateExpression(const hsql::Expr* expression);
-std::string translateSelect(const hsql::SelectStatement* selectStatement);
-std::string translateTableRefInfo(const hsql::TableRef* table);
+#include "utility.h"
 
 /*
  * Translate Operator Expression
@@ -371,7 +364,7 @@ std::string translateColumnDefinitions(const std::vector<hsql::ColumnDefinition*
  * CREATE TABLE tableName (Name1 Type, Name2 Type, ...)  
  *
 */
-std::string executeCreate(const hsql::CreateStatement* createStatement)
+std::string translateCreate(const hsql::CreateStatement* createStatement)
 {
 	std::ostringstream stringStream;
 
@@ -401,7 +394,7 @@ std::string execute(const hsql::SQLStatement* sqlStatement)
 		}
 		case hsql::kStmtCreate:
 		{
-			return executeCreate((const hsql::CreateStatement*)sqlStatement);
+			return translateCreate((const hsql::CreateStatement*)sqlStatement);
 		}
 		default:
 		{
@@ -412,30 +405,16 @@ std::string execute(const hsql::SQLStatement* sqlStatement)
 	
 }
 
-void Translate(std::string query)
+std::string execute(std::string query)
 {
 	hsql::SQLParserResult* result = hsql::SQLParser::parseSQLString(query);
 
 	if (result->isValid())
 	{
-		std::cout << execute(result->getStatement(0)) << std::endl;
+		return execute(result->getStatement(0));
 	}
 	else
 	{
-		std::cout << "Invalid SQL: " << query << std::endl;
+		return "Invalid SQL: " + query;
 	}
-}
-
-int main()
-{
-	Translate("select * from foo left join goober on foo.x=goober.x");
-	Translate("select * from foo as f left join goober on f.x = goober.x");
-	Translate("select * from foo as f left join goober as g on f.x = g.x");
-	Translate("select a,b,g.c from foo as f, goo as g");
-	Translate("select a,b,c from foo where foo.b > foo.c + 6");
-	Translate("select f.a,g.b,h.c from foo as f join goober as g on f.id = g.id where f.z >1");
-	Translate("foo bar blaz");
-	Translate("create table foo (a text, b integer, c double)");
-
-	return 0;
 }

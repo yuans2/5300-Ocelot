@@ -51,10 +51,12 @@ protected:
 	virtual void get_header(u_int16_t &size, u_int16_t &loc, RecordID id=0);
 	virtual void put_header(RecordID id=0, u_int16_t size=0, u_int16_t loc=0);
 	virtual bool has_room(u_int16_t size);
-	virtual void slide(u_int16_t start, u_int16_t end);
+	//virtual void slide(u_int16_t start, u_int16_t end);
 	virtual u_int16_t get_n(u_int16_t offset);
 	virtual void put_n(u_int16_t offset, u_int16_t n);
 	virtual void* address(u_int16_t offset);
+	virtual bool have_record(RecordID record_id);
+	virtual void shift_record(RecordID begin_record_id, u_int16_t offset);
 };
 
 /**

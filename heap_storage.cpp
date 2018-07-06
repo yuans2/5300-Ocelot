@@ -1,5 +1,7 @@
 #include "heap_storage.h"
 
+typedef u_int16_t u16;
+
 SlottedPage::SlottedPage(Dbt &block, BlockID block_id, bool is_new=false) : DbBlock(block, block_id, is_new)
 {
 	if (is_new)

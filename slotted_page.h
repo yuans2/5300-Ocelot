@@ -8,7 +8,7 @@
 #pragma once
 
 #include "db_cxx.h"
-#include "DbBlock.h"
+#include "db_block.h"
 
 /**
  * @class SlottedPage - heap file implementation of DbBlock.

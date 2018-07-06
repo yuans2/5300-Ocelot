@@ -1,5 +1,5 @@
 #include <cstring>
-#include "SlottedPage.h"
+#include "slotted_page.h"
 
 typedef u_int16_t u16;
 

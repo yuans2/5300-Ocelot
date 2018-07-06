@@ -1,5 +1,5 @@
 #include <cstring>
-#include "SlottedPage.h"
+#include "slotted_page.h"
 #include "db_cxx.h"
 
 int main()

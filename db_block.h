@@ -13,11 +13,6 @@
 #include <vector>
 #include "db_cxx.h"
 
-/**
- * Global variable to hold dbenv.
- */
-extern DbEnv* _DB_ENV;
-
 /*
  * Convenient aliases for types
  */

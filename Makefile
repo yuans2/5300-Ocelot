@@ -16,7 +16,7 @@ sql5300: $(OBJS)
 sql5300.o : heap_storage.h storage_engine.h
 heap_storage.o : heap_storage.h storage_engine.h
 
-SlottedPageUnitTest : SlottedPage.o SlottedPageUnitTest.o
+slotted_page_u : slotted_page.o slotted_page_u.o
 	g++ -L$(LIB_DIR) -o $@ $^ -ldb_cxx
 
 # General rule for compilation

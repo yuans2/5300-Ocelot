@@ -1,3 +1,4 @@
+#include <cstring>
 #include "heap_file.h"
 
 HeapFile::HeapFile(std::string name) : DbFile(name), last(0), closed(true), db(_DB_ENV, 0)
@@ -7,7 +8,17 @@ HeapFile::HeapFile(std::string name) : DbFile(name), last(0), closed(true), db(_
 
 void HeapFile::create()
 {
-	db_open(DB_CREATE);
+	db_open(DB_CREATE | DB_EXCL);
+}
+
+void HeapFile::drop()
+{
+	if (!this->closed)
+	{
+		close();
+	}
+	
+	_DB_ENV->dbremove(NULL, this->dbfilename.c_str(), NULL, 0);
 }
 
 void HeapFile::open()
@@ -40,15 +51,16 @@ SlottedPage* HeapFile::get_new()
 	}
 	
 	char block[DbBlock::BLOCK_SZ];
-	this->last++;
+	std::memset(block, 0, sizeof(block));
 	Dbt data(block, sizeof(block));
-	Dbt key(&this->last, sizeof(this->last));
+	
+	int block_id = ++this->last;
+	Dbt key(&block_id, sizeof(block_id));
+
 	this->db.put(NULL, &key, &data, 0);
+	this->db.get(NULL, &key, &data, 0);
 	
-	Dbt* rdata = new Dbt();
-	this->db.get(NULL, &key, rdata, 0);
-	
-	return new SlottedPage(*rdata, this->last, true);
+	return new SlottedPage(data, this->last, true);
 }
 
 SlottedPage* HeapFile::get(BlockID block_id)
@@ -59,10 +71,10 @@ SlottedPage* HeapFile::get(BlockID block_id)
 	}
 	
 	Dbt key(&block_id, sizeof(block_id));
-	Dbt* rdata = new Dbt();
-	this->db.get(NULL, &key, rdata, 0);
+	Dbt rdata;
+	this->db.get(NULL, &key, &rdata, 0);
 	
-	return new SlottedPage(*rdata, block_id, false);
+	return new SlottedPage(rdata, block_id, false);
 }
 
 void HeapFile::put(DbBlock* block)

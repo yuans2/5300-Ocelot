@@ -13,6 +13,8 @@
 #include <vector>
 #include "db_cxx.h"
 
+typedef u_int16_t u16;
+
 /*
  * Convenient aliases for types
  */
@@ -20,6 +22,14 @@ typedef u_int16_t RecordID;
 typedef u_int32_t BlockID;
 typedef std::vector<RecordID> RecordIDs;
 typedef std::length_error DbBlockNoRoomError;
+
+/**
+ * @class DbBlockError - generic exception class for DbBlock
+ */
+class DbBlockError : public std::runtime_error {
+public:
+	explicit DbBlockError(std::string s) : runtime_error(s) {}
+};
 
 /**
  * @class DbBlock - abstract base class for blocks in our database files 
@@ -68,7 +78,7 @@ public:
 	 * @param record_id  which record to fetch
 	 * @returns          the data stored for the given record
 	 */
-	virtual Dbt* get(RecordID record_id) = 0;
+	virtual Dbt* get(RecordID record_id) throw(DbBlockError) = 0;
 
 	/**
 	 * Change the data stored for a record in this block.
@@ -77,7 +87,7 @@ public:
 	 * @throws           DbBlockNoRoomError if insufficient room in the block 
 	 *                   (old record is retained)
 	 */
-	virtual void put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomError) = 0;
+	virtual void put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomError, DbBlockError) = 0;
 
 	/**
 	 * Delete a record from this block.

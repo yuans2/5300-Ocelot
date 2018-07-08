@@ -27,7 +27,7 @@ public:
 	HeapFile& operator=(HeapFile&& temp) = delete;
 
 	virtual void create(void);
-	//virtual void drop(void);
+	virtual void drop(void);
 	virtual void open(void);
 	virtual void close(void);
 	virtual SlottedPage* get_new(void);

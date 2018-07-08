@@ -37,8 +37,8 @@ public:
 	SlottedPage& operator=(SlottedPage& temp) = delete;
 
 	virtual RecordID add(const Dbt* data) throw(DbBlockNoRoomError);
-	virtual Dbt* get(RecordID record_id);
-	virtual void put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomError);
+	virtual Dbt* get(RecordID record_id) throw(DbBlockError);
+	virtual void put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomError, DbBlockError);
 	virtual void del(RecordID record_id);
 	virtual RecordIDs* ids(void);
 
@@ -53,6 +53,7 @@ protected:
 	virtual u_int16_t get_n(u_int16_t offset);
 	virtual void put_n(u_int16_t offset, u_int16_t n);
 	virtual void* address(u_int16_t offset);
+	virtual void ensure_record_exist(RecordID record_id) throw (DbBlockError);
 	virtual bool have_record(RecordID record_id);
 	virtual void shift_records(RecordID begin_record_id, u_int16_t shift_offset, bool left = true);
 };

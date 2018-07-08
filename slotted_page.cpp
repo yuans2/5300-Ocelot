@@ -1,7 +1,6 @@
 #include <cstring>
+#include <sstream>
 #include "slotted_page.h"
-
-typedef u_int16_t u16;
 
 SlottedPage::SlottedPage(Dbt &block, BlockID block_id, bool is_new) : DbBlock(block, block_id, is_new)
 {
@@ -19,7 +18,7 @@ SlottedPage::SlottedPage(Dbt &block, BlockID block_id, bool is_new) : DbBlock(bl
 
 RecordID SlottedPage::add(const Dbt* data) throw(DbBlockNoRoomError)
 {
-	if (!has_room(data->get_size()))
+	if (!has_room(data->get_size() + 4))
 	{
 		throw DbBlockNoRoomError("not enough room for new record");
 	}
@@ -37,55 +36,25 @@ RecordID SlottedPage::add(const Dbt* data) throw(DbBlockNoRoomError)
 	return id;
 }
 
-Dbt* SlottedPage::get(RecordID record_id)
+Dbt* SlottedPage::get(RecordID record_id) throw(DbBlockError)
 {
-	if (!have_record(record_id))
-	{
-		return NULL;
-	}
+	ensure_record_exist(record_id);
 
 	u16 size, offset;
 	get_header(size, offset, record_id);
 
-	if (offset == 0)
-	{
-		return NULL;
-	}
-
-	// TODO decide whether use the memory of its block or create new one
 	return new Dbt(this->address(offset), size);
 }
 
-bool SlottedPage::have_record(RecordID record_id)
+void SlottedPage::put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomError, DbBlockError)
 {
-	if (record_id == 0 || record_id > this->num_records)
-	{
-		return false;
-	}
-
-	u16 size, offset;
-	get_header(size, offset, record_id);
-
-	if (offset == 0)
-	{
-		return false;
-	}
-
-	return true;
-}
-
-void SlottedPage::put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomError)
-{
-	if (!have_record(record_id))
-	{
-		return;
-	}
+	ensure_record_exist(record_id);
 
 	u16 old_size, old_offset;
 	get_header(old_size, old_offset, record_id);
 	u16 new_size = (u16) data.get_size();
 	
-	if (new_size> old_size && !has_room(new_size-old_size-4))
+	if (new_size> old_size && !has_room(new_size-old_size))
 	{
 		throw DbBlockNoRoomError("not enough room for updating record");
 	}
@@ -124,10 +93,7 @@ void SlottedPage::put(RecordID record_id, const Dbt &data) throw(DbBlockNoRoomEr
 
 void SlottedPage::del(RecordID record_id)
 {
-	if (!have_record(record_id))
-	{
-		return;
-	}
+	ensure_record_exist(record_id);
 
 	u16 size, offset;
 	get_header(size, offset, record_id);
@@ -141,6 +107,50 @@ void SlottedPage::del(RecordID record_id)
 	}
 
 	put_header();
+}
+
+RecordIDs* SlottedPage::ids(void)
+{
+	RecordIDs* record_ids = new RecordIDs();
+
+	for (RecordID i = 1; i <= this->num_records; i++)
+	{
+		if (have_record(i))
+		{
+			record_ids->push_back(i);
+		}
+	}
+
+	return record_ids;
+}
+
+void SlottedPage::ensure_record_exist(RecordID record_id) throw (DbBlockError)
+{
+	if (!have_record(record_id))
+	{
+		std::ostringstream string_stream;
+		string_stream << "Record not found with id: " << record_id;
+		
+		throw DbBlockError(string_stream.str());
+	}
+}
+
+bool SlottedPage::have_record(RecordID record_id)
+{
+	if (record_id == 0 || record_id > this->num_records)
+	{
+		return false;
+	}
+
+	u16 size, offset;
+	get_header(size, offset, record_id);
+
+	if (offset == 0)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void SlottedPage::shift_records(RecordID begin_record_id, u_int16_t shift_offset, bool left)
@@ -195,21 +205,6 @@ void SlottedPage::shift_records(RecordID begin_record_id, u_int16_t shift_offset
 	put_header();
 }
 
-RecordIDs* SlottedPage::ids(void)
-{
-	RecordIDs* record_ids = new RecordIDs();
-
-	for (RecordID i = 1; i <= this->num_records; i++)
-	{
-		if (have_record(i))
-		{
-			record_ids->push_back(i);
-		}
-	}
-
-	return record_ids;
-}
-
 void SlottedPage::get_header(u_int16_t &size, u_int16_t &loc, RecordID id)
 {
 	size = get_n(4*id);
@@ -231,7 +226,7 @@ void SlottedPage::put_header(RecordID id, u_int16_t size, u_int16_t loc)
 
 bool SlottedPage::has_room(u_int16_t size)
 {
-	return 4 * (this->num_records + 1) + 3 < this->end_free - size + 1;
+	return 4 * this->num_records + 3 < this->end_free - size + 1;
 }
 
 u16 SlottedPage::get_n(u16 offset)

@@ -6,8 +6,12 @@
 #include <algorithm>
 #include "helper.h"
 #include "db_cxx.h"
+#include "unit_test.h"
 
 const int MAXPATHLENGTH = 1024;
+
+DbEnv* _DB_ENV;
+
 /**
  * Main entry point of the program
  * @args dbenvpath the path to BerkeleyDB environment  
@@ -35,6 +39,14 @@ int main(int argc, char *argv[])
 	env.open(real_path, DB_CREATE | DB_INIT_MPOOL, 0);
 
 	std::cout << "(sql5300: running with database environment at " << real_path << ")" << std::endl;
+	
+	std::cout << "Usage:" << std::endl;
+	std::cout << "	Type SQL to get translated SQL back;" << std::endl;
+	std::cout << "	Type test_slotted_page to run SlottedPage unit test;" << std::endl;
+	std::cout << "	Type test_heap_file to run HeapFile unit test;" << std::endl;
+	std::cout << "	Type test_heap_table to run HeapTable unit test;" << std::endl;
+	
+	_DB_ENV = &env;
 
 	//SQL shell loop
 	while (true)
@@ -52,10 +64,24 @@ int main(int argc, char *argv[])
 		// Convert to lower case
 		std::transform(query.begin(), query.end(), query.begin(), ::tolower);
 
-
 		if (query == "quit")
 		{
 			return 0;
+		}
+		else if (query == "test_slotted_page")
+		{
+			test_slotted_page();
+			std::cout << "test_slotted_page pass" << std::endl;
+		}
+		else if (query == "test_heap_file")
+		{
+			test_heap_file();
+			std::cout << "test_heap_file pass" << std::endl;
+		}
+		else if (query == "test_heap_table")
+		{
+			test_heap_table();
+			std::cout << "test_heap_table pass" << std::endl;
 		}
 		else
 		{

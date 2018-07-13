@@ -1,9 +1,17 @@
+/**
+ * @file sql5300.cpp - main entry for the relation manaager's SQL shell
+ * @see "Seattle University, cpsc4300/5300, summer 2018"
+ */
+
 #include <algorithm>
-#include "utility.h"
+#include "helper.h"
 #include "db_cxx.h"
 
 const int MAXPATHLENGTH = 1024;
-
+/**
+ * Main entry point of the program
+ * @args dbenvpath the path to BerkeleyDB environment  
+ */
 int main(int argc, char *argv[])
 {
 	if (argc != 2)
@@ -12,10 +20,10 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	char realPath[MAXPATHLENGTH];
-	char* resolvedPath = realpath(argv[1], realPath);
+	char real_path[MAXPATHLENGTH];
+	char* resolved_path = realpath(argv[1], real_path);
 
-	if (resolvedPath == NULL)
+	if (resolved_path == NULL)
 	{
 		std::cout << "Invalid DbEnvPath" << std::endl;
 		exit(-1);
@@ -24,10 +32,11 @@ int main(int argc, char *argv[])
 	DbEnv env(0U);
 	env.set_message_stream(&std::cout);
 	env.set_error_stream(&std::cerr);
-	env.open(realPath, DB_CREATE | DB_INIT_MPOOL, 0);
+	env.open(real_path, DB_CREATE | DB_INIT_MPOOL, 0);
 
-	std::cout << "(sql5300: running with database environment at " << realPath << ")" << std::endl;
+	std::cout << "(sql5300: running with database environment at " << real_path << ")" << std::endl;
 
+	//SQL shell loop
 	while (true)
 	{
 		std::cout << "SQL> ";

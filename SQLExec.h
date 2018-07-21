@@ -9,16 +9,7 @@
 #include <string>
 #include "SQLParser.h"
 #include "schema_tables.h"
-#include "common.h"
-#include "heap_table.h"
-#include "heap_file.h"
-#include "slotted_page.h"
-#include "db_block.h"
-#include "db_relation.h"
-#include "db_file.h"
-#include "helper.h"
-#include "db_cxx.h"
-#include "storage_engine.h"
+
 /**
  * @class SQLExecError - exception for SQLExec methods
  */
@@ -38,21 +29,21 @@ public:
     QueryResult(std::string message) : column_names(nullptr), column_attributes(nullptr), rows(nullptr),
                                        message(message) {}
 
-    QueryResult(ColumnNames *column_names, ColumnAttributes *column_attributes, ValueDicts *rows, std::string message)
+    QueryResult(ColumnNames *column_names, ColumnAttributes *column_attributes, ValueDict *rows, std::string message)
             : column_names(column_names), column_attributes(column_attributes), rows(rows), message(message) {}
 
     virtual ~QueryResult();
 
     ColumnNames *get_column_names() const { return column_names; }
     ColumnAttributes *get_column_attributes() const { return column_attributes; }
-    ValueDicts *get_rows() const { return rows; }
+    ValueDict *get_rows() const { return rows; }
     const std::string &get_message() const { return message; }
     friend std::ostream &operator<<(std::ostream &stream, const QueryResult &qres);
 
 protected:
     ColumnNames *column_names;
     ColumnAttributes *column_attributes;
-    ValueDicts *rows;
+    ValueDict *rows;
     std::string message;
 };
 

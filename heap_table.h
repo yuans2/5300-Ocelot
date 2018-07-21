@@ -8,8 +8,11 @@
 
 #pragma once
 
+#include "db_block.h"
 #include "db_relation.h"
+#include "db_file.h"
 #include "heap_file.h"
+
 
 /**
  * @class HeapTable - Heap storage engine (implementation of DbRelation)

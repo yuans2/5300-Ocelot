@@ -9,6 +9,8 @@
 
 #include "db_cxx.h"
 #include "db_block.h"
+#include "db_relation.h"
+#include "db_file.h"
 
 /**
  * @class SlottedPage - heap file implementation of DbBlock.

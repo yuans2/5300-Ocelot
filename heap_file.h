@@ -10,6 +10,8 @@
 
 #include "db_cxx.h"
 #include "slotted_page.h"
+#include "db_block.h"
+#include "db_relation.h"
 #include "db_file.h"
 
 /**

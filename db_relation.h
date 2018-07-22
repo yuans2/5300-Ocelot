@@ -110,6 +110,9 @@ public:
 	 * @returns      a pointer to a list of handles for qualifying rows (freed by caller)
 	 */
 	//virtual Handles* select(const ValueDict* where) = 0;
+	virtual Handles* select(const ValueDict* where) = 0;
+
+
 
 	/**
 	 * Return a sequence of all values for handle (SELECT *).

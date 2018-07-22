@@ -1,4 +1,4 @@
-
+/*
  * @file common.h - common aliases for types.
  *
  * @see "Seattle University, CPSC5300, Summer 2018"

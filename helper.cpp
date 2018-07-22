@@ -6,6 +6,8 @@
 #include <sstream>
 #include "helper.h"
 #include<iostream>
+
+using namespace std;
 /*
  * Translate Operator Expression
  *
@@ -406,7 +408,7 @@ std::string translate_create(const hsql::CreateStatement* create_statement)
  * @param sql_statement SQLstatement object
  * @return a string of the SQL statement 
  */
-std::string execute(const hsql::SQLStatement* sql_statement)
+string QueryToString(const hsql::SQLStatement* sql_statement)
 {
 	if (sql_statement == NULL)
 	{
@@ -430,29 +432,4 @@ std::string execute(const hsql::SQLStatement* sql_statement)
 		}
 
 	}
-	
-}
-/**
- * Execute the query
- * @param query query inputed by user
- * @return a string of the query
- */
-std::string execute(std::string query)
-{
-	hsql::SQLParserResult* result = hsql::SQLParser::parseSQLString(query);
-	
-	std::string message;
-
-	if (result->isValid())
-	{
-		message = execute(result->getStatement(0));
-	}
-	else
-	{
-		message = "Invalid SQL: " + query;
-	}
-	
-	delete result;
-	
-	return message;
-}
+}	

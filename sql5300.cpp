@@ -7,6 +7,10 @@
 #include "helper.h"
 #include "db_cxx.h"
 #include "unit_test.h"
+#include "SQLExec.h"
+#include "ParseTreeToString.h"
+
+using namespace std;
 
 const int MAXPATHLENGTH = 1024;
 
@@ -33,11 +37,15 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	DbEnv env(0U);
-	env.set_message_stream(&std::cout);
-	env.set_error_stream(&std::cerr);
-	env.open(real_path, DB_CREATE | DB_INIT_MPOOL, 0);
-
+	DbEnv* env = new DbEnv(0U);
+	env->set_message_stream(&std::cout);
+	env->set_error_stream(&std::cerr);
+   try {
+	   env->open(real_path, DB_CREATE | DB_INIT_MPOOL, 0);
+   } catch (DbException &exe) {
+      cerr << "(sql5300: " << exe.what() << ")" << endl;
+      return 1;
+   }
 	std::cout << "(sql5300: running with database environment at " << real_path << ")" << std::endl;
 	
 	std::cout << "Usage:" << std::endl;
@@ -46,7 +54,9 @@ int main(int argc, char *argv[])
 	std::cout << "	Type test_heap_file to run HeapFile unit test;" << std::endl;
 	std::cout << "	Type test_heap_table to run HeapTable unit test;" << std::endl;
 	
-	_DB_ENV = &env;
+	_DB_ENV = env;
+
+   initialize_schema_tables();
 
 	//SQL shell loop
 	while (true)
@@ -85,7 +95,26 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			std::cout << execute(query) << std::endl;
-		}
-	}
+			hsql::SQLParserResult* parseResult = hsql::SQLParser::parseSQLString(query);
+	      std::string message;
+	      if (parseResult->isValid())
+	      {
+            for (uint i = 0; i < parseResult->size(); i++) {
+               try {
+                  cout << ParseTreeToString::statement(parseResult->getStatement(i)) << endl;
+                  QueryResult *result = SQLExec::execute(parseResult->getStatement(i));
+                  cout << *result << endl;
+                  delete result;
+               } catch (SQLExecError& e) {
+                  cout << "Error: " << e.what() << endl;
+               }
+	         }
+	      } else
+	      {
+	      	message = "Invalid SQL: " + query;
+	      }
+      delete parseResult;
+	   }
+   }
+   return 0;
 }

@@ -28,6 +28,8 @@ public:
 		INT,
 		TEXT
 	};
+
+	ColumnAttribute() : data_type(INT) {}
 	ColumnAttribute(DataType data_type) : data_type(data_type) {}
 	virtual ~ColumnAttribute() {}
 
@@ -56,6 +58,8 @@ public:
    bool operator!=(const Value &other) const; 
 
 };
+
+
 
 // More type aliases
 typedef std::string Identifier;

@@ -29,21 +29,21 @@ public:
     QueryResult(std::string message) : column_names(nullptr), column_attributes(nullptr), rows(nullptr),
                                        message(message) {}
 
-    QueryResult(ColumnNames *column_names, ColumnAttributes *column_attributes, ValueDict *rows, std::string message)
+    QueryResult(ColumnNames *column_names, ColumnAttributes *column_attributes, ValueDicts *rows, std::string message)
             : column_names(column_names), column_attributes(column_attributes), rows(rows), message(message) {}
 
     virtual ~QueryResult();
 
     ColumnNames *get_column_names() const { return column_names; }
     ColumnAttributes *get_column_attributes() const { return column_attributes; }
-    ValueDict *get_rows() const { return rows; }
+    ValueDicts *get_rows() const { return rows; }
     const std::string &get_message() const { return message; }
     friend std::ostream &operator<<(std::ostream &stream, const QueryResult &qres);
 
 protected:
     ColumnNames *column_names;
     ColumnAttributes *column_attributes;
-    ValueDict *rows;
+    ValueDicts *rows;
     std::string message;
 };
 

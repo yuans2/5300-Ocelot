@@ -5,7 +5,7 @@
 
 #include <sstream>
 #include "helper.h"
-
+#include<iostream>
 /*
  * Translate Operator Expression
  *
@@ -19,6 +19,7 @@
  * @param expression Expr object
  * @return a string of SQL statement
  */
+using namespace std;
 
 std::string translate_operator_expression(const hsql::Expr* expression)
 {
@@ -420,6 +421,7 @@ std::string execute(const hsql::SQLStatement* sql_statement)
 		}
 		case hsql::kStmtCreate:
 		{
+      cout << "here" << endl;
 			return translate_create((const hsql::CreateStatement*)sql_statement);
 		}
 		default:

@@ -153,10 +153,44 @@ void HeapTable::del(const Handle handle)
 	this->file.put(slotted_page.get());
 }
 
+
+Handles* HeapTable::select() {
+   return select(nullptr);
+}
+
+// Conceptually, execute: SELECT <handle> FROM <table_name> WHERE <where>
+// // Returns a list of handles for qualifying rows.
+Handles* HeapTable::select(const ValueDict* where) {
+   open();
+   Handles* handles = new Handles();
+   BlockIDs* block_ids = file.block_ids();
+   for (auto const& block_id: *block_ids) {
+      SlottedPage* block = file.get(block_id);
+      RecordIDs* record_ids = block->ids();
+      for (auto const& record_id: *record_ids) {
+         Handle handle(block_id, record_id);
+         if (selected(handle, where))
+            handles->push_back(Handle(block_id, record_id));
+      }
+      delete record_ids;
+      delete block;
+   }
+   delete block_ids;
+   return handles;
+}
+
+// See if the row at the given handle satisfies the given where clause
+bool HeapTable::selected(Handle handle, const ValueDict* where) {
+   if (where == nullptr)
+      return true;
+   ValueDict* row = this->project(handle, where);
+   return *row == *where;
+}
 /**
  * Execute: SELECT <handle> FROM <table_name> WHERE ...
  * @returns  a pointer to a list of handles for qualifying rows 
  */
+/*
 Handles* HeapTable::select()
 {
 	BlockIDs* block_ids = this->file.block_ids();
@@ -180,8 +214,19 @@ Handles* HeapTable::select()
 	
 	return handles;
 }
+*/
 
-/**
+// Just pulls out the column names from a ValueDict and passes that to the usual form of project().
+ValueDict* HeapTable::project(Handle handle, const ValueDict* where) {
+   ColumnNames t;
+   for (auto const& column: *where)
+      t.push_back(column.first);
+   return this->project(handle, &t);
+}
+
+
+
+/*
  * Return a sequence of all values for handle (SELECT *).
  * @param handle  row to get values from
  * @returns       dictionary of values from row (keyed by all column names)

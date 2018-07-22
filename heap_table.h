@@ -73,6 +73,8 @@ public:
 	 * @returns  a pointer to a list of handles for qualifying rows 
 	 */
 	virtual Handles* select();
+   virtual Handles* select(const ValueDict *where);
+   virtual bool selected(Handle handle, const ValueDict* where);
 	/**
 	 * Return a sequence of all values for handle (SELECT *).
 	 * @param handle  row to get values from
@@ -87,6 +89,7 @@ public:
 	 * @returns             dictionary of values from row (keyed by column_names)
 	 */
 	virtual ValueDict* project(Handle handle, const ColumnNames* column_names);
+   virtual ValueDict* project(Handle handle, const ValueDict* where);
 
 protected:
 	HeapFile file;

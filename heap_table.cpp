@@ -200,8 +200,11 @@ Dbt* HeapTable::marshal(const ValueDict* row) const {
 			offset += sizeof(u16);
 			memcpy(bytes+offset, value.s.c_str(), size); // assume ascii for now
 			offset += size;
-		} else {
-			throw DbRelationError("Only know how to marshal INT and TEXT");
+		} else if(ca.get_data_type() == ColumnAttribute::DataType::BOOLEAN) {
+            value.n = *(uint8_t*)(bytes + offset);
+            offset += sizeof(uint8_t);
+        }else {
+			throw DbRelationError("Only know how to marshal INT, TEXT, and BOOLEAN");
 		}
 	}
 	char *right_size_bytes = new char[offset];
@@ -246,5 +249,4 @@ bool HeapTable::selected(Handle handle, const ValueDict* where) {
 	ValueDict* row = this->project(handle, where);
 	return *row == *where;
 }
-
 

@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
 	         }
 	      } else
 	      {
-	      	message = "Invalid SQL: " + query;
+	      	cout << "Invalid SQL: " << query << endl;
 	      }
       delete parseResult;
 	   }

@@ -7,165 +7,102 @@
 
 #include <cstring>
 #include "heap_file.h"
+#include<iostream>
 
+using namespace std;
  /**
   * Constructor
   */
-HeapFile::HeapFile(std::string name) : DbFile(name), last(0), closed(true), opened_before(false), db(_DB_ENV, 0)
-{
+
+/*
+ * *******************
+ * HeapFile class
+ * *******************
+ */
+
+HeapFile::HeapFile(string name) : DbFile(name), dbfilename(""), last(0), closed(true), db(_DB_ENV, 0) {
 	this->dbfilename = this->name + ".db";
 }
 
-/**
- * Create a file
- */
-void HeapFile::create()
-{
-	db_open(DB_CREATE | DB_EXCL);
+// Create physical file.
+void HeapFile::create(void) {
+	db_open(DB_CREATE|DB_EXCL);
+	SlottedPage *page = get_new(); // force one page to exist
+	delete page;
 }
 
-/**
- * Remove the file
- */
-void HeapFile::drop()
-{
-	if (!this->closed)
-	{
-		close();
-	}
-	
-	_DB_ENV->dbremove(NULL, this->dbfilename.c_str(), NULL, 0);
+// Delete the physical file.
+void HeapFile::drop(void) {
+	close();
+	Db db(_DB_ENV, 0);
+	db.remove(this->dbfilename.c_str(), nullptr, 0);
 }
 
-/**
- * Open a file
- */
-void HeapFile::open()
-{
-	if (this->closed)
-	{
-		db_open();
-		
-		DB_BTREE_STAT db_stat;
-		this->db.stat(NULL, (void*)&db_stat, 0);
-		
-		this->last = db_stat.bt_ndata;
-	}
+// Open physical file.
+void HeapFile::open(void) {
+    db_open();
 }
 
-/**
- * Close underlying file
- */
-void HeapFile::close()
-{
-	if (!this->closed)
-	{
-		this->db.close(0);
-		this->closed = true;
-	}
+// Close the physical file.
+void HeapFile::close(void) {
+	this->db.close(0);
+	this->closed = true;
 }
 
-/**
- * Add a new block to this file
- * @return newly added slotted page
- */
-SlottedPage* HeapFile::get_new()
-{
-	if (this->closed)
-	{
-		open();
-	}
-	
+// Allocate a new block for the database file.
+// Returns the new empty DbBlock that is managing the records in this block and its block id.
+SlottedPage* HeapFile::get_new(void) {
 	char block[DbBlock::BLOCK_SZ];
-	std::memset(block, 0, sizeof(block));
+	memset(block, 0, sizeof(block));
 	Dbt data(block, sizeof(block));
-	
+
 	int block_id = ++this->last;
 	Dbt key(&block_id, sizeof(block_id));
 
-	this->db.put(NULL, &key, &data, 0);
-	this->db.get(NULL, &key, &data, 0);
-	
-	return new SlottedPage(data, this->last, true);
+	// write out an empty block and read it back in so Berkeley DB is managing the memory
+	SlottedPage* page = new SlottedPage(data, this->last, true);
+	this->db.put(nullptr, &key, &data, 0); // write it out with initialization done to it
+	delete page;
+	this->db.get(nullptr, &key, &data, 0);
+	return new SlottedPage(data, this->last);
 }
 
-/**
- * Get a specific block from this file
- * @param block_id the id of the block wanted
- * @return block asked
- */
-SlottedPage* HeapFile::get(BlockID block_id)
-{
-	if (this->closed)
-	{
-		open();
-	}
-	
+// Get a block from the database file.
+SlottedPage* HeapFile::get(BlockID block_id) {
 	Dbt key(&block_id, sizeof(block_id));
-	Dbt rdata;
-	this->db.get(NULL, &key, &rdata, 0);
-	
-	return new SlottedPage(rdata, block_id, false);
+	Dbt data;
+	this->db.get(nullptr, &key, &data, 0);
+	return new SlottedPage(data, block_id, false);
 }
 
-/**
- * Write a block to this file
- * @param block to overwrite
- */
-void HeapFile::put(DbBlock* block)
-{
-	if (this->closed)
-	{
-		open();
-	}
-	
-	BlockID block_id = block->get_block_id();
+// Write a block back to the database file.
+void HeapFile::put(DbBlock* block) {
+	int block_id = block->get_block_id();
 	Dbt key(&block_id, sizeof(block_id));
-	this->db.put(NULL, &key, block->get_block(), 0);
+	this->db.put(nullptr, &key, block->get_block(), 0);
 }
 
-/**
- * Get the list of all the valid block ids in the file
- * @return a list of block ids 
- */
-BlockIDs* HeapFile::block_ids()
-{
-	if (this->closed)
-	{
-		open();
-	}
-	
-	BlockIDs* blockIDs = new BlockIDs();
-	
-	for(BlockID i = 1; i <= this->last; i++)
-	{
-		blockIDs->push_back(i);
-	}
-	
-	return blockIDs;
+// Sequence of all block ids.
+BlockIDs* HeapFile::block_ids() const {
+	BlockIDs* vec = new BlockIDs();
+	for (BlockID block_id = 1; block_id <= this->last; block_id++)
+		vec->push_back(block_id);
+	return vec;
 }
 
-/**
- * Opens the datebase represented by the file
- * @param flags flag parameter of the database
- */
-void HeapFile::db_open(uint flags)
-{
-	if (this->closed)
-	{
-		if (!this->opened_before)
-		{
-			this->db.set_message_stream(_DB_ENV->get_message_stream());
-			this->db.set_error_stream(_DB_ENV->get_error_stream());
-			this->db.set_re_len(DbBlock::BLOCK_SZ);
-			this->db.open(NULL, this->dbfilename.c_str(), NULL, DB_RECNO, flags, 0);
-			this->closed = false;
-			this->opened_before = true;
-		}
-		else
-		{
-			throw DbFileError("The file was opened by this heap file object. Please use a new object to open again.");
-		}
-	}
+uint32_t HeapFile::get_block_count() {
+	DB_BTREE_STAT* stat;
+	this->db.stat(nullptr, &stat, DB_FAST_STAT);
+	return stat->bt_ndata;
+}
 
+// Wrapper for Berkeley DB open, which does both open and creation.
+void HeapFile::db_open(uint flags) {
+    if (!this->closed)
+        return;
+    this->db.set_re_len(DbBlock::BLOCK_SZ); // record length - will be ignored if file already exists
+    this->db.open(nullptr, this->dbfilename.c_str(), nullptr, DB_RECNO, flags, 0644);
+
+	this->last = flags ? 0 : get_block_count();
+    this->closed = false;
 }

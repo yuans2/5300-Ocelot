@@ -43,15 +43,21 @@ public:
 	virtual SlottedPage* get_new(void);
 	virtual SlottedPage* get(BlockID block_id);
 	virtual void put(DbBlock* block);
-	virtual BlockIDs* block_ids();
+	virtual BlockIDs* block_ids() const;
 
-	virtual u_int32_t get_last_block_id() {return last;}
+	/**
+	 * Get the id of the current final block in the heap file.
+	 * @returns  block id of last block
+	 */
+	virtual uint32_t get_last_block_id() {return last;}
 
 protected:
 	std::string dbfilename;
-	u_int32_t last;
+	uint32_t last;
 	bool closed;
-	bool opened_before;
 	Db db;
 	virtual void db_open(uint flags=0);
+	virtual uint32_t get_block_count();
 };
+
+

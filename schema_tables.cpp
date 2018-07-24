@@ -5,7 +5,9 @@
  */
 #include "schema_tables.h"
 #include "ParseTreeToString.h"
+#include<iostream>
 
+using namespace std;
 
 void initialize_schema_tables() {
     Tables tables;
@@ -83,7 +85,7 @@ void Tables::create() {
 }
 
 // Manually check that table_name is unique.
-Handle Tables::insert(const ValueDict *row) {
+Handle Tables::insert(const ValueDict* row) {
     // Try SELECT * FROM _tables WHERE table_name = row["table_name"] and it should return nothing
     Handles* handles = select(row);
     bool unique = handles->empty();
@@ -115,15 +117,15 @@ void Tables::get_columns(Identifier table_name, ColumnNames &column_names, Colum
     where["table_name"] = table_name;
     Handles* handles = Tables::columns_table->select(&where);
 
-    ColumnAttribute* column_attribute;
+    ColumnAttribute column_attribute;
     for (auto const& handle: *handles) {
         ValueDict* row = Tables::columns_table->project(handle);  // get the row's values: {'column_name': <name>, 'data_type': <type>}
 
         Identifier column_name = (*row)["column_name"].s;
         column_names.push_back(column_name);
 
-        column_attribute->set_data_type((*row)["data_type"].s == "INT" ? ColumnAttribute::INT : ColumnAttribute::TEXT);
-        column_attributes.push_back(*column_attribute);
+        column_attribute.set_data_type((*row)["data_type"].s == "INT" ? ColumnAttribute::INT : ColumnAttribute::TEXT);
+        column_attributes.push_back(column_attribute);
 
         delete row;
     }

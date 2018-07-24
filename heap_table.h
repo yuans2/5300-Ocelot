@@ -72,15 +72,14 @@ public:
 	 * Execute: SELECT <handle> FROM <table_name> WHERE ...
 	 * @returns  a pointer to a list of handles for qualifying rows 
 	 */
-	virtual Handles* select();
+
    virtual Handles* select(const ValueDict *where);
-   virtual bool selected(Handle handle, const ValueDict* where);
 	/**
 	 * Return a sequence of all values for handle (SELECT *).
 	 * @param handle  row to get values from
 	 * @returns       dictionary of values from row (keyed by all column names)
-	 */
-	virtual ValueDict* project(Handle handle);
+	 * */
+	virtual Handles* select();
 	/**
 	 * Return a sequence of values for handle given by column_names 
 	 * (SELECT <column_names>).
@@ -88,34 +87,41 @@ public:
 	 * @param column_names  list of column names to project
 	 * @returns             dictionary of values from row (keyed by column_names)
 	 */
+	virtual ValueDict* project(Handle handle);
+
 	virtual ValueDict* project(Handle handle, const ColumnNames* column_names);
    virtual ValueDict* project(Handle handle, const ValueDict* where);
-
+   
 protected:
-	HeapFile file;
+	HeapFile* file;
 	/**
 	 * Validate that the row is leagal for the table
 	 * @param row a dictionary keyed by column names
+	 * @return fully fleshed out row otherwise
 	 */
-	virtual void validate(const ValueDict* row);
+	ValueDict* validate(const ValueDict* row) const;
+
+    /*
+    * compares a relation to a row for equivalence
+    * @param handle handle to relation to compare
+    * @param where row for comparing relation rows to
+    * @return bool of equal or not
+    */ 
+   virtual bool selected(Handle handle, const ValueDict* where);
+ 
+   //used by insert, appends a row to end of file
+   virtual Handle append(const ValueDict* row);
 	/**
 	 * Get a specific block from table 
 	 * @param block_id the id of the block asked
-	 * @return block asked 
+	 * @return block asked
 	 */
-	virtual SlottedPage* get_block(BlockID block_id);
-	
-	/**
-	 * Serialization
-	 * @param row  a dictionary keyed by column names
-	 * @returns  serialized data 
-	 */
-	virtual Dbt* marshal(const ValueDict* row);
+	virtual Dbt* marshal(const ValueDict* row) const;
 	
 	/**
 	 * Unserialization
 	 * @param stored data to unserialize
 	 * @returns unserialized dictionary keyed by column names
 	 */
-	virtual ValueDict* unmarshal(Dbt* data);
+	virtual ValueDict* unmarshal(Dbt* data) const;
 };

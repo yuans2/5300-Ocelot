@@ -207,9 +207,9 @@ string ParseTreeToString::create(const CreateStatement *stmt) {
         ret += "INDEX ";
         ret += string(stmt->indexName) + " ON ";
         ret += string(stmt->tableName) + " USING " + stmt->indexType + " (";
-        boo doComma = false;
+        bool doComma = false;
         for (auto const& col : *stmt->indexColumns) {
-            if(doComm)
+            if(doComma)
                 ret += ", ";
             ret += string(col);
             doComma = true;

@@ -139,7 +139,7 @@ public:
 	 * @param column_names  list of column names to project (taken from keys of dict)
 	 * @returns             dictionary of values from row (keyed by column_names)
 	 */
-	virtual ValueDict* project(Handle handle, const ValueDict* column_names);
+   virtual ValueDict* project(Handle handle, const ValueDict* column_names) = 0;
 
 	/**
 	 * Accessor for column_names.
@@ -148,6 +148,9 @@ public:
 	virtual const ColumnNames& get_column_names() const { 
 		return column_names; 
 	}
+   virtual const ColumnAttributes get_column_attributes() const {
+      return column_attributes; 
+   }
 	
 protected:
 	Identifier table_name;

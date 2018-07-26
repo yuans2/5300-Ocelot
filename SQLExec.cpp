@@ -9,6 +9,7 @@ using namespace hsql;
 
 Indices* SQLExec::indices = nullptr;
 Tables* SQLExec::tables = nullptr;
+Indices* SQLExec::indices = nullptr;
 
 ostream &operator<<(ostream &out, const QueryResult &qres) {
     if (qres.column_names != nullptr) {
@@ -157,7 +158,65 @@ QueryResult *SQLExec::create_table(const CreateStatement *statement) {
 }
 
 QueryResult *SQLExec::create_index(const CreateStatement *statement) {
-    return new QueryResult("create index not implemented");  // FIXME
+
+	Identifier index_name = statement->indexName;
+	Identifier table_name = statement->tableName;
+
+	DbRelation& table = SQLExec::tables->get_table(table_name);
+
+	const ColumnNames& table_columns = table.get_column_names();
+
+	for(auto const& col_name: *statement->indexColumns){
+		if(find(table_columns.begin(), table_columns.end(),col_name) == table_columns.end()){
+			//throw SQLExecError(string("column '" + col_name + "' does not exist"));
+			throw;
+		}
+	}
+
+	cout << "First for loop Complete" << endl;
+
+	ValueDict row;
+
+	row["table_name"] = Value(table_name);
+	row["index_name"] = Value(index_name);
+	row["index_type"] = Value(statement->indexType);
+	row["is_unique"] = Value(string(statement->indexType) == "BTREE");
+
+	cout << "Rows set" << endl;
+
+	int seq = 0;
+
+	Handles inHandles;
+
+
+	cout << "Begining to try" << endl;
+	try {
+		for(auto const &col_name: *statement->indexColumns){
+			cout << "set seq" << endl;
+			row["seq_index"] = Value(++seq);
+			cout << "set column_name" << endl;
+			row["column_name"] = Value(col_name);
+			cout << "PUSH BACK" << endl;
+			inHandles.push_back(SQLExec::indices->insert(&row));
+		} 
+		cout << "Try for look done" << endl;
+		DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
+
+		index.create();
+		cout << "index.create() success" << endl;
+
+	}catch(...){
+		try {
+			for(auto const &handle: inHandles){
+				SQLExec::indices->del(handle);
+			}
+		}catch(...){}
+
+		throw;
+	}
+
+	return new QueryResult("Index " + index_name + " created.");
+    
 }
 
 // DROP ...

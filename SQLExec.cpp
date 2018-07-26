@@ -7,6 +7,7 @@
 using namespace std;
 using namespace hsql;
 
+Indices* SQLExec::indices = nullptr;
 Tables* SQLExec::tables = nullptr;
 
 ostream &operator<<(ostream &out, const QueryResult &qres) {
@@ -173,7 +174,8 @@ QueryResult *SQLExec::drop(const DropStatement *statement) {
  
 QueryResult *SQLExec::drop_table(const DropStatement *statement) {
     Identifier table_name = statement->name;
-    if (table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME)
+    if (table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME || 
+         table_name==Indices::TABLE_NAME)
         throw SQLExecError("cannot drop a schema table");
 
     ValueDict where;
@@ -201,7 +203,32 @@ QueryResult *SQLExec::drop_table(const DropStatement *statement) {
 }
 
 QueryResult *SQLExec::drop_index(const DropStatement *statement) {
-    return new QueryResult("drop index not implemented");  // FIXME
+    Identifier table_name = statement->name;
+    Identifier index_name = statement->indexName;
+    ValueDict where;
+    where["table_name"] = Value(table_name);
+    where["index_name"] = Value(index_name);
+
+    // get the table
+    DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
+
+	/* FIXME - drop any indices! */
+
+    // remove from _columns schema
+    DbRelation& columns = SQLExec::tables->get_table(Columns::TABLE_NAME);
+    Handles* handles = columns.select(&where);
+    for (auto const& handle: *handles)
+        columns.del(handle);
+    delete handles;
+
+    // remove table
+    index.drop();
+
+    // finally, remove from _tables schema
+    SQLExec::indices->del(*SQLExec::indices->select(&where)->begin()); // expect only one row from select
+
+    return new QueryResult(string("dropped index ") + index_name);
+
 }
 
 QueryResult *SQLExec::show(const ShowStatement *statement) {
@@ -218,7 +245,31 @@ QueryResult *SQLExec::show(const ShowStatement *statement) {
 }
 
 QueryResult *SQLExec::show_index(const ShowStatement *statement) {
-    return new QueryResult("show index not implemented");  // FIXME
+
+    ColumnNames* column_names = new ColumnNames;
+    column_names->push_back("table_name");
+    column_names->push_back("index_name");
+    column_names->push_back("column_name");
+    column_names->push_back("seq_in_index");
+    column_names->push_back("index_type");
+    column_names->push_back("is_unique");
+
+    ColumnAttributes* column_attributes = new ColumnAttributes;
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
+
+    ValueDict where;
+    where["table_name"] = Value(statement->tableName);
+    Handles* handles = SQLExec::indices->select(&where);
+    u_long n = handles->size();
+
+    ValueDicts* rows = new ValueDicts;
+    for (auto const& handle: *handles) {
+        ValueDict* row = SQLExec::indices->project(handle, column_names);
+        rows->push_back(row);
+    }
+    delete handles;
+    return new QueryResult(column_names, column_attributes, rows,
+                           "successfully returned " + to_string(n) + " rows");
 }
 
 QueryResult *SQLExec::show_tables() {

@@ -9,7 +9,7 @@ using namespace hsql;
 
 Indices* SQLExec::indices = nullptr;
 Tables* SQLExec::tables = nullptr;
-Indices* SQLExec::indices = nullptr;
+
 
 ostream &operator<<(ostream &out, const QueryResult &qres) {
     if (qres.column_names != nullptr) {
@@ -61,6 +61,8 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) throw(SQLExecError)
     // initialize _tables table, if not yet present
     if (SQLExec::tables == nullptr)
         SQLExec::tables = new Tables();
+    if (SQLExec::indices == nullptr)
+    	SQLExec::indices = new Indices();
 
     try {
         switch (statement->type()) {
@@ -173,8 +175,6 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement) {
 		}
 	}
 
-	cout << "First for loop Complete" << endl;
-
 	ValueDict row;
 
 	row["table_name"] = Value(table_name);
@@ -182,28 +182,23 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement) {
 	row["index_type"] = Value(statement->indexType);
 	row["is_unique"] = Value(string(statement->indexType) == "BTREE");
 
-	cout << "Rows set" << endl;
-
 	int seq = 0;
 
 	Handles inHandles;
 
-
-	cout << "Begining to try" << endl;
 	try {
 		for(auto const &col_name: *statement->indexColumns){
-			cout << "set seq" << endl;
-			row["seq_index"] = Value(++seq);
-			cout << "set column_name" << endl;
+
+			row["seq_in_index"] = Value(++seq);
+
 			row["column_name"] = Value(col_name);
-			cout << "PUSH BACK" << endl;
+
 			inHandles.push_back(SQLExec::indices->insert(&row));
 		} 
-		cout << "Try for look done" << endl;
+
 		DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
 
 		index.create();
-		cout << "index.create() success" << endl;
 
 	}catch(...){
 		try {

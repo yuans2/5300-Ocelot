@@ -6,7 +6,9 @@
 #include "schema_tables.h"
 #include "ParseTreeToString.h"
 #include<iostream>
+
 using namespace std;
+
 void initialize_schema_tables() {
     Tables tables;
     tables.create_if_not_exists();
@@ -258,6 +260,7 @@ Handle Columns::insert(const ValueDict* row) {
  * ****************************
  */
 const Identifier Indices::TABLE_NAME = "_indices";
+
 std::map<std::pair<Identifier,Identifier>,DbIndex*> Indices::index_cache;
 
 // get the column name for _indices column
@@ -298,6 +301,7 @@ Indices::Indices() : HeapTable(TABLE_NAME, COLUMN_NAMES(), COLUMN_ATTRIBUTES()) 
 
 // Manually check constraints -- unique on (table, index, column)
 Handle Indices::insert(const ValueDict* row) {
+
     // Check that datatype is acceptable
     if (!is_acceptable_identifier(row->at("index_name").s))
         throw DbRelationError("unacceptable index name '" + row->at("index_name").s + "'");
@@ -306,15 +310,23 @@ Handle Indices::insert(const ValueDict* row) {
     //     AND column_name = column_name["column_name"]
     // and it should return nothing
     ValueDict where;
+
     where["table_name"] = row->at("table_name");
+
     where["index_name"] = row->at("index_name");
+
     if (row->at("seq_in_index").n > 1)
         where["column_name"] = row->at("column_name");  // check for duplicate columns on the same index
+
     Handles* handles = select(&where);
+
     bool unique = handles->empty();
+
     delete handles;
+
     if (!unique)
         throw DbRelationError("duplicate index " + row->at("table_name").s + " " + row->at("index_name").s);
+
     return HeapTable::insert(row);
 }
 

@@ -179,8 +179,6 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement) {
 	row["index_name"] = Value(index_name);
 	row["index_type"] = Value(statement->indexType);
    row["is_unique"] = Value(string(statement->indexType) == "BTREE");
-
-
 	int seq = 0;
 
 	Handles inHandles;
@@ -191,9 +189,9 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement) {
 			row["column_name"] = Value(col_name);
 			inHandles.push_back(SQLExec::indices->insert(&row));
 		}
+
 		DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
 		index.create();
-
 	}catch(...){
 		try {
 			for(auto const &handle: inHandles){
@@ -280,9 +278,7 @@ QueryResult *SQLExec::drop_index(const DropStatement *statement) {
     delete handles;
 
     // remove index
-    
     //index.drop();
-
     return new QueryResult(string("dropped index ") + index_name);
 
 }

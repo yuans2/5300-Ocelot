@@ -253,17 +253,23 @@ QueryResult *SQLExec::drop_table(const DropStatement *statement) {
 
     //remove any indexes on table
     IndexNames theseIndices = SQLExec::indices->get_index_names(table_name);
+
     if (!theseIndices.empty()) {
        for (auto const& index_name: theseIndices) { 
-         DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
+       	// This is what causes the warning when making, and is becuase the index.drop()
+    	// function has been commented below.
+        DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
      
          // remove from _indices schema
-         Handles* handles = SQLExec::indices->select(&where);
+        Handles* handles = SQLExec::indices->select(&where);
   
-         for (auto const& handle: *handles)
+        for (auto const& handle: *handles)
             SQLExec::indices->del(handle);
     
-         delete handles;
+        // index.drop() causes segfault due to dummy function
+        //index.drop();
+        
+        delete handles;
       }
     }
  
@@ -300,7 +306,8 @@ QueryResult *SQLExec::drop_index(const DropStatement *statement) {
     where["index_name"] = Value(index_name);
    
     // get the table
-
+    // This is what causes the warning when making, and is becuase the index.drop()
+    // function has been commented below.
     DbIndex& index = SQLExec::indices->get_index(table_name, index_name);
  
     // remove from _indices schema
@@ -309,6 +316,9 @@ QueryResult *SQLExec::drop_index(const DropStatement *statement) {
     for (auto const& handle: *handles)
         SQLExec::indices->del(handle);
  
+    // index.drop() causes a segfault, likely due to it refering to a dummy function
+    //index.drop();
+
     delete handles;
 
     return new QueryResult(string("dropped index ") + index_name);

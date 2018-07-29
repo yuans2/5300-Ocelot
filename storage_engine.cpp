@@ -1,3 +1,13 @@
+/*
+ * storage_engine.cpp
+ * @author Kevin Lundeen
+ * This file implements a coule of new Value operations which
+ * didnt have a home elsewhere
+ */
+
+// we moved DbRelation::project(ValueDict where) to be a member
+// of HeapTable
+
 #include "common.h"
 
 bool Value::operator==(const Value &other) const {

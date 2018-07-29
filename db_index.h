@@ -1,3 +1,9 @@
+/*
+ * Abstract base class of Index Relation
+ * @author Kevin Lundeen
+ *
+ */
+
 class DbIndex {
 public:
 	/**

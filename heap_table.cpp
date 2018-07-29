@@ -1,7 +1,8 @@
 /**
- * @file->heap_table.cpp - function definitions for HeapTable.
+ * @file->>heap_table.cpp - function definitions for HeapTable.
  * HeapTable
  *
+ *  
  * @see "Seattle University, CPSC5300, Summer 2018"
  */
 
@@ -10,148 +11,242 @@
 #include "heap_table.h"
 #include<iostream>
 
+
+
 using namespace std;
 // Constructor
-HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes ) :
-		DbRelation(table_name, column_names, column_attributes) {
-   this->file = new HeapFile(table_name);
+HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes )
+	: DbRelation(table_name, column_names, column_attributes)
+{
+this->file = new HeapFile(table_name);
 }
 
-// Execute: CREATE TABLE <table_name> ( <columns> )
-// Is not responsible for metadata storage or validation.
-void HeapTable::create() {
-	file->create();
+/**
+ * Execute: CREATE TABLE <table_name> ( <columns> )
+ */
+void HeapTable::create()
+{
+	this->file->create();
 }
 
-// Execute: CREATE TABLE IF NOT EXISTS <table_name> ( <columns> )
-// Is not responsible for metadata storage or validation.
-void HeapTable::create_if_not_exists() {
-	try {
-		open();
-	} catch (DbException& e) {
-		create();
+/**
+ * Execute: CREATE TABLE IF NOT EXISTS <table_name> ( <columns> )
+ */
+void HeapTable::create_if_not_exists()
+{
+	try
+	{
+		this->file->create();
+	}
+	catch (DbException exception)
+	{
+		if (exception.get_errno() != EEXIST)
+		{
+			throw exception;
+		}
 	}
 }
 
-// Execute: DROP TABLE <table_name>
-void HeapTable::drop() {
-	file->drop();
+/**
+ * Execute: DROP TABLE <table_name>
+ */
+void HeapTable::drop()
+{
+	this->file->drop();
 }
 
-// Open existing table. Enables: insert, update, delete, select, project
-void HeapTable::open() {
-	file->open();
+/**
+ * Open existing table to insert, update, select etc.
+ */
+void HeapTable::open()
+{
+	this->file->open();
 }
 
-// Closes the table. Disables: insert, update, delete, select, project
-void HeapTable::close() {
-	file->close();
+/**
+ * Closes an open table.
+ */
+void HeapTable::close()
+{
+	this->file->close();
 }
 
-// Expect row to be a dictionary with column name keys.
-// Execute: INSERT INTO <table_name> (<row_keys>) VALUES (<row_values>)
-// Return the handle of the inserted row.
-Handle HeapTable::insert(const ValueDict* row) {
-    open();
-    ValueDict* full_row = validate(row);
-    Handle handle = append(full_row);
-    delete full_row;
-    return handle;
+/**
+ * Execute: INSERT INTO <table_name> ( <row_keys> ) VALUES ( <row_values> )
+ * @param row  a dictionary keyed by column names
+ * @returns    a handle to the new row
+ */
+Handle HeapTable::insert(const ValueDict* row)
+{
+	validate(row);
+	Dbt* data = marshal(row);
+	
+	u_int32_t last_block_id = this->file->get_last_block_id();
+	
+	SlottedPage* slotted_page = NULL;
+	
+	if (last_block_id == 0)
+	{
+		slotted_page = this->file->get_new();
+	}
+	else
+	{
+		slotted_page = this->file->get(last_block_id);
+	}
+	
+	RecordID record_id;
+	
+	try
+	{
+		record_id = slotted_page->add(data);
+	}
+	catch(DbBlockNoRoomError db_block_no_room_error)
+	{
+		delete slotted_page;
+		slotted_page = this->file->get_new();
+		record_id = slotted_page->add(data);
+	}
+	
+	this->file->put(slotted_page);
+	
+	Handle handle = std::make_pair(slotted_page->get_block_id(), record_id);
+	
+	delete slotted_page;
+	delete[] (char*)data->get_data();
+	delete data;
+	
+	return handle;
 }
 
-// Expect new_values to be a dictionary with column name keys.
-// Conceptually, execute: UPDATE INTO <table_name> SET <new_values> WHERE <handle>
-// where handle is sufficient to identify one specific record (e.g., returned from an insert
-// or select).
-void HeapTable::update(const Handle handle, const ValueDict* new_values) {
-	throw DbRelationError("Not implemented");
+/**
+ * Execute: UPDATE INTO <table_name> SET <new_valus> WHERE <handle>
+ * where handle is sufficient to identify one specific record (e.g., returned
+ * from an insert or select).
+ * @param handle      the row to update
+ * @param new_values  a dictionary keyd by column names for changing columns
+ */
+void HeapTable::update(const Handle handle, const ValueDict* new_values)
+{
+	validate(new_values);
+	std::unique_ptr<SlottedPage> slotted_page(this->file->get(handle.first));
+	std::unique_ptr<Dbt> data(marshal(new_values));
+	
+	try
+	{
+		RecordID record_id = handle.second;
+		slotted_page->put(record_id, *data);
+		this->file->put(slotted_page.get());
+	}
+	catch(DbBlockError exception)
+	{
+		delete[] (char*)data->get_data();
+		
+		throw exception;
+	}
+	
+	delete[] (char*)data->get_data();
+}
+/**
+ * Execute: DELETE FROM <table_name> WHERE <handle>
+ * where handle is sufficient to identify one specific record (e.g, returned
+ * from an insert or select).
+ * @param handle   the row to delete
+ */ 
+void HeapTable::del(const Handle handle)
+{
+	std::unique_ptr<SlottedPage> slotted_page(this->file->get(handle.first));
+	slotted_page->del(handle.second);
+	this->file->put(slotted_page.get());
 }
 
-// Conceptually, execute: DELETE FROM <table_name> WHERE <handle>
-// where handle is sufficient to identify one specific record (e.g., returned from an insert
-// or select).
-void HeapTable::del(const Handle handle) {
-	open();
-	BlockID block_id = handle.first;
-	RecordID record_id = handle.second;
-	SlottedPage* block = this->file->get(block_id);
-	block->del(record_id);
-	this->file->put(block);
-	delete block;
-}
 
-// Conceptually, execute: SELECT <handle> FROM <table_name> WHERE 1
-// Returns a list of handles for qualifying rows.
 Handles* HeapTable::select() {
-	return select(nullptr);
+   return select(nullptr);
 }
 
 // Conceptually, execute: SELECT <handle> FROM <table_name> WHERE <where>
-// Returns a list of handles for qualifying rows.
+// // Returns a list of handles for qualifying rows.
 Handles* HeapTable::select(const ValueDict* where) {
-
-	open();
-
-	Handles* handles = new Handles();
-
-	BlockIDs* block_ids = file->block_ids();
-
+   open();
+   Handles* handles = new Handles();
+   BlockIDs* block_ids = file->block_ids();
     for (auto const& block_id: *block_ids) {
-
-    	SlottedPage* block = file->get(block_id);
-
-    	RecordIDs* record_ids = block->ids();
-
-    	for (auto const& record_id: *record_ids) {
-
-			Handle handle(block_id, record_id);
-
-			if (selected(handle, where))
-    			handles->push_back(handle);
-		}
-
-    	delete record_ids;
-
-    	delete block;
-
+      SlottedPage* block = file->get(block_id);
+      RecordIDs* record_ids = block->ids();
+      for (auto const& record_id: *record_ids) {
+         Handle handle(block_id, record_id);
+         if (selected(handle, where))
+            handles->push_back(handle);
+      }
+      delete record_ids;
+      delete block;
     }
-
     delete block_ids;
-
-	return handles;
+   return handles;
 }
 
-// Return a sequence of all values for handle.
-ValueDict* HeapTable::project(Handle handle) {
-	return project(handle, &this->column_names);
+// See if the row at the given handle satisfies the given where clause
+bool HeapTable::selected(Handle handle, const ValueDict* where) {
+   if (where == nullptr)
+      return true;
+   ValueDict* row = this->project(handle, where);
+   return *row == *where;
 }
+/**
+ * Execute: SELECT <handle> FROM <table_name> WHERE ...
+ * @returns  a pointer to a list of handles for qualifying rows 
+ */
 
+
+// Just pulls out the column names from a ValueDict and passes that to the usual form of project().
 ValueDict* HeapTable::project(Handle handle, const ValueDict* where) {
    ColumnNames t;
    for (auto const& column: *where)
       t.push_back(column.first);
    return this->project(handle, &t);
 }
-// Return a sequence of values for handle given by column_names.
-ValueDict* HeapTable::project(Handle handle, const ColumnNames* column_names) {
-	BlockID block_id = handle.first;
-	RecordID record_id = handle.second;
-    SlottedPage* block = file->get(block_id);
-    Dbt* data = block->get(record_id);
-    ValueDict* row = unmarshal(data);
-    delete data;
-    delete block;
-    if (column_names->empty())
-    	return row;
-    ValueDict* result = new ValueDict();
-    for (auto const& column_name: *column_names) {
-		if (row->find(column_name) == row->end())
-			throw DbRelationError("table does not have column named '" + column_name + "'");
-    	(*result)[column_name] = (*row)[column_name];
-	}
-	delete row;
-    return result;
+
+
+
+/*
+ * Return a sequence of all values for handle (SELECT *).
+ * @param handle  row to get values from
+ * @returns       dictionary of values from row (keyed by all column names)
+ */
+ValueDict* HeapTable::project(Handle handle)
+{
+	std::unique_ptr<SlottedPage> slotted_page(this->file->get(handle.first));
+	Dbt* record = slotted_page->get(handle.second);
+	ValueDict* current_value = unmarshal(record);
+	
+	delete record;
+	
+	return current_value;
 }
+
+/**
+ * Return a sequence of values for handle given by column_names 
+ * (SELECT <column_names>).
+ * @param handle        row to get values from
+ * @param column_names  list of column names to project
+ * @returns             dictionary of values from row (keyed by column_names)
+ */
+ValueDict* HeapTable::project(Handle handle, const ColumnNames* column_names)
+{
+	ValueDict* all_values = project(handle);
+	ValueDict* projected_values = new ValueDict();
+	
+	for(uint i = 0; i < column_names->size(); i++)
+	{
+		Identifier identifier = column_names->at(i);
+		projected_values->insert(std::pair<Identifier, Value>(identifier, all_values->at(identifier)));
+	}
+	
+	delete all_values;
+	
+	return projected_values;
+}
+
 
 // Check if the given row is acceptable to insert. Raise ValueError if not.
 // Otherwise return the full row dictionary.
@@ -169,7 +264,7 @@ ValueDict* HeapTable::validate(const ValueDict* row) const {
     return full_row;
 }
 
-// Assumes row is fully fleshed-out. Appends a record to the file->
+// Assumes row is fully fleshed-out. Appends a record to the file->>
 Handle HeapTable::append(const ValueDict* row) {
     Dbt* data = marshal(row);
     SlottedPage* block = this->file->get(this->file->get_last_block_id());
@@ -182,7 +277,7 @@ Handle HeapTable::append(const ValueDict* row) {
     	record_id = block->add(data);
     }
     this->file->put(block);
-	delete block;
+	 delete block;
     delete[] (char*)data->get_data();
     delete data;
     return Handle(this->file->get_last_block_id(), record_id);
@@ -262,13 +357,5 @@ ValueDict* HeapTable::unmarshal(Dbt* data) const {
 		(*row)[column_name] = value;
     }
     return row;
-}
-
-// See if the row at the given handle satisfies the given where clause
-bool HeapTable::selected(Handle handle, const ValueDict* where) {
-	if (where == nullptr)
-		return true;
-	ValueDict* row = this->project(handle, where);
-	return *row == *where;
 }
 

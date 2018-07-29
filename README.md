@@ -30,8 +30,17 @@
   
   sql5300.cpp – Main entry for the relation manager’s SQL shell.
   
-  MakeFile – Tool to compile.
+  SQLExec.h - SQLExec function declarations
+
+  SQLExec.cpp - Concrete implementation for executing SQL statements
+
+  schema_tables.h - Abstract base class for _tables, _columns, _indices
+
+  schema_tables.cpp - Concrete implementation for managing _tables, _columns, and _indices
+
+  db_index.h - Abstract class for index
   
+  MakeFile – Tool to compile.
 
 
 Compile and run:
@@ -41,6 +50,9 @@ Compile and run:
   $ ./sql5300  DbEnvPath ( eg: ~/cpsc5300/data) – Run the code/start shell  
   
   SQL> SQL – Get translated SQL back.
+  
+  The below tests may not function properly after changes made for 
+  milestone 4.
   
   SQL>  test_slotted_page – To run SlottedPage unit test 
   

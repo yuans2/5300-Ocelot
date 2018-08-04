@@ -7,15 +7,7 @@
  */
 #pragma once
 
-#include "common.h"
-#include "heap_table.h"
-#include "heap_file.h"
-#include "slotted_page.h"
-#include "db_block.h"
-#include "db_relation.h"
-#include "db_file.h"
-#include "db_index.h"
-
+#include "heap_storage.h"
 
 /**
  * Initialize access to the schema tables.
@@ -155,5 +147,4 @@ protected:
 private:
 	static std::map<std::pair<Identifier,Identifier>,DbIndex*> index_cache;
 };
-
 

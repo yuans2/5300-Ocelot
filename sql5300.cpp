@@ -4,9 +4,8 @@
  */
 
 #include <algorithm>
-#include "helper.h"
+
 #include "db_cxx.h"
-#include "unit_test.h"
 #include "SQLExec.h"
 #include "ParseTreeToString.h"
 
@@ -78,20 +77,24 @@ int main(int argc, char *argv[])
 		{
 			return 0;
 		}
-		else if (query == "test_slotted_page")
-		{
-			test_slotted_page();
-			std::cout << "test_slotted_page pass" << std::endl;
-		}
-		else if (query == "test_heap_file")
-		{
-			test_heap_file();
-			std::cout << "test_heap_file pass" << std::endl;
-		}
-		else if (query == "test_heap_table")
-		{
-			test_heap_table();
-			std::cout << "test_heap_table pass" << std::endl;
+//		else if (query == "test_slotted_page")
+//		{
+//			test_slotted_page();
+//			std::cout << "test_slotted_page pass" << std::endl;
+//		}
+//		else if (query == "test_heap_file")
+//		{
+//			test_heap_file();
+//			std::cout << "test_heap_file pass" << std::endl;
+//		}
+//		else if (query == "test_heap_table")
+//		{
+//			test_heap_table();
+//			std::cout << "test_heap_table pass" << std::endl;
+//		}
+		if (query == "test") {
+			cout << "test_heap_storage: " << (test_heap_storage() ? "ok" : "failed") << endl;
+			continue;
 		}
 		else
 		{

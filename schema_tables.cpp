@@ -5,9 +5,8 @@
  */
 #include "schema_tables.h"
 #include "ParseTreeToString.h"
-#include<iostream>
+#include "btree.h"
 
-using namespace std;
 
 void initialize_schema_tables() {
     Tables tables;
@@ -16,9 +15,9 @@ void initialize_schema_tables() {
     Columns columns;
     columns.create_if_not_exists();
     columns.close();
-    Indices indices;
-    indices.create_if_not_exists();
-    indices.close();
+	Indices indices;
+	indices.create_if_not_exists();
+	indices.close();
 }
 
 // Not terribly useful since the parser weeds most of these out
@@ -85,8 +84,8 @@ void Tables::create() {
     insert(&row);
     row["table_name"] = Value("_columns");
     insert(&row);
-    row["table_name"] = Value("_indices");
-    insert(&row);
+	row["table_name"] = Value("_indices");
+	insert(&row);
 }
 
 // Manually check that table_name is unique.
@@ -260,7 +259,6 @@ Handle Columns::insert(const ValueDict* row) {
  * ****************************
  */
 const Identifier Indices::TABLE_NAME = "_indices";
-
 std::map<std::pair<Identifier,Identifier>,DbIndex*> Indices::index_cache;
 
 // get the column name for _indices column
@@ -301,7 +299,6 @@ Indices::Indices() : HeapTable(TABLE_NAME, COLUMN_NAMES(), COLUMN_ATTRIBUTES()) 
 
 // Manually check constraints -- unique on (table, index, column)
 Handle Indices::insert(const ValueDict* row) {
-
     // Check that datatype is acceptable
     if (!is_acceptable_identifier(row->at("index_name").s))
         throw DbRelationError("unacceptable index name '" + row->at("index_name").s + "'");
@@ -310,23 +307,15 @@ Handle Indices::insert(const ValueDict* row) {
     //     AND column_name = column_name["column_name"]
     // and it should return nothing
     ValueDict where;
-
     where["table_name"] = row->at("table_name");
-
     where["index_name"] = row->at("index_name");
-
     if (row->at("seq_in_index").n > 1)
         where["column_name"] = row->at("column_name");  // check for duplicate columns on the same index
-
     Handles* handles = select(&where);
-
     bool unique = handles->empty();
-
     delete handles;
-
     if (!unique)
         throw DbRelationError("duplicate index " + row->at("table_name").s + " " + row->at("index_name").s);
-
     return HeapTable::insert(row);
 }
 
@@ -404,7 +393,7 @@ DbIndex& Indices::get_index(Identifier table_name, Identifier index_name) {
     if (is_hash) {
         index = new DummyIndex(table, index_name, column_names, is_unique);  // FIXME - change to HashIndex
     } else {
-        index = new DummyIndex(table, index_name, column_names, is_unique);  // FIXME - change to BTreeIndex
+        index = new BTreeIndex(table, index_name, column_names, is_unique);
     }
     Indices::index_cache[cache_key] = index;
     return *index;
@@ -424,3 +413,4 @@ IndexNames Indices::get_index_names(Identifier table_name) {
     delete handles;
     return ret;
 }
+

@@ -73,6 +73,12 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) throw(SQLExecError)
                 return drop((const DropStatement *) statement);
             case kStmtShow:
                 return show((const ShowStatement *) statement);
+            case kStmtInsert:
+                return insert((const InsertStatement *)statement);
+            case kStmtDelete:
+                return del((const DeleteStatement *)statement);
+            case kStmtSelect:
+                return select((const SelectStatement *)statement);
             default:
                 return new QueryResult("not implemented");
         }
@@ -82,7 +88,55 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) throw(SQLExecError)
 }
 
 QueryResult *SQLExec::insert(const InsertStatement *statement) {
-    return new QueryResult("INSERT statement not yet implemented");  // FIXME
+
+    Identifier table_name = statement->tableName;
+    DbRelation& table = SQLExec::tables->get_table(table_name);
+    ColumnNames column_names;
+    ColumnAttributes column_attributes;
+    ValueDict row;
+    uint i = 0;
+    Handle insertHandle;
+    //get column info
+    if (statement->columns != nullptr) {
+        for (auto const& col : *statement->columns) {
+            column_names.push_back(col);
+        }
+    }
+    else {
+        for (auto const& col: table.get_column_names()) {
+            column_names.push_back(col);
+        }
+    }
+    //get type of column
+    for (auto const& col : *statement->values) {
+        switch (col->type) {
+            case kExprLiteralString:
+                row[colNames[i]] = Value(value->name);
+                i++;
+                break;
+            case kExprLiteralInt:
+                row[colNames[i]] = Value(value->ival);
+                i++;
+                break;
+            default:
+                return new QueryResult("Data type not implemented");//shouldn't add
+
+        }
+    }
+    insert_handle = insert_table.insert(&row); //add insert to handle
+    IndexNames index_names = SQLExec::indices->get_index_names(table_name);
+
+    for (Identifier ind_name : index_names) {
+        DbIndex& index = SQLExec::indices->get_index(table_name, ind_name);
+        index.insert(insert_handle); // dummy for now
+    }
+    string has_indices= "";
+    if(index_names.size() >= 1){
+        has_indices += " and "+ index_names.size()+ " indices";
+    }
+
+    return new QueryResult("Successfully inserted 1 row into "
+                           + table_name + " and " + to_string(index_size) + has_indices);
 }
 
 QueryResult *SQLExec::del(const DeleteStatement *statement) {

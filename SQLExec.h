@@ -79,12 +79,18 @@ protected:
     static QueryResult *show_columns(const hsql::ShowStatement *statement);
     static QueryResult *show_index(const hsql::ShowStatement *statement);
 
+	static QueryResult *insert(const hsql::InsertStatement *statement);
+	static QueryResult *del(const hsql::DeleteStatement *statement);
+	static QueryResult *select(const hsql::SelectStatement *statement);
+
+
 	/**
 	 * Pull out column name and attributes from AST's column definition clause
 	 * @param col                AST column definition
 	 * @param column_name        returned by reference
 	 * @param column_attributes  returned by reference
 	 */
+	static ValueDict* get_where_conjunction(const hsql::Expr *expr, ValueDict *where);
     static void column_definition(const hsql::ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute);
 };
 

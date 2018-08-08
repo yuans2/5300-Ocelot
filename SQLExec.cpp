@@ -4,6 +4,9 @@
  * @see "Seattle University, CPSC5300, Summer 2018"
  */
 #include "SQLExec.h"
+#include "EvalPlan.h"
+#include "ParseTreeToString.h"
+
 using namespace std;
 using namespace hsql;
 
@@ -74,11 +77,11 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) throw(SQLExecError)
             case kStmtShow:
                 return show((const ShowStatement *) statement);
             case kStmtInsert:
-                return insert((const InsertStatement *)statement);
+                return insert((const InsertStatement *) statement);
             case kStmtDelete:
-                return del((const DeleteStatement *)statement);
+                return del((const DeleteStatement *) statement);
             case kStmtSelect:
-                return select((const SelectStatement *)statement);
+                return select((const SelectStatement *) statement);
             default:
                 return new QueryResult("not implemented");
         }
@@ -86,10 +89,50 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) throw(SQLExecError)
         throw SQLExecError(string("DbRelationError: ") + e.what());
     }
 }
+ValueDict* SQLExec::get_where_conjunction(const Expr *expr, ValueDict *where){
 
+    if (expr->type == hsql::kExprOperator)
+    {
+        if (expr->opType == hsql::Expr::SIMPLE_OP &&  expr->opChar == '=')
+        {
+            Identifier identifier = expr->expr->name;
+
+            switch (expr->expr2->type){
+                case hsql::kExprLiteralString: {
+                    (*where)[identifier] = Value(expr->expr2->name);
+                    break;
+                }
+                case hsql::kExprLiteralInt: {
+                    (*where)[identifier] = Value(int32_t(expr->expr2->ival));
+                    break;
+                }
+                default:
+                    throw DbRelationError("Not valid data type.");
+                    break;
+            }
+
+
+        }
+
+        }else if (expr->opType == Expr::AND) {
+            ValueDict* left_where= get_where_conjunction(expr->expr, where);
+            ValueDict* right_where= get_where_conjunction(expr->expr2, where);
+
+
+        }
+        else {
+            throw  DbRelationError("Invalid where statement");
+        }
+    return where;
+}
+
+
+
+//Insert row into table
 QueryResult *SQLExec::insert(const InsertStatement *statement) {
-
+    //get table name
     Identifier table_name = statement->tableName;
+    //get table
     DbRelation& table = SQLExec::tables->get_table(table_name);
     ColumnNames column_names;
     ColumnAttributes column_attributes;
@@ -107,44 +150,95 @@ QueryResult *SQLExec::insert(const InsertStatement *statement) {
             column_names.push_back(col);
         }
     }
-    //get type of column
+    //insert into row
     for (auto const& col : *statement->values) {
         switch (col->type) {
             case kExprLiteralString:
-                row[colNames[i]] = Value(value->name);
+                row[column_names[i]] = Value(col->name);
                 i++;
                 break;
             case kExprLiteralInt:
-                row[colNames[i]] = Value(value->ival);
+                row[column_names[i]] = Value(col->ival);
                 i++;
                 break;
             default:
-                return new QueryResult("Data type not implemented");//shouldn't add
+                return new QueryResult("Not valid data type");//shouldn't add
 
         }
-    }
-    insert_handle = insert_table.insert(&row); //add insert to handle
-    IndexNames index_names = SQLExec::indices->get_index_names(table_name);
 
+    }
+    //insert row to table
+    insertHandle = table.insert(&row); //add insert to handle
+    //get index names
+    IndexNames index_names = SQLExec::indices->get_index_names(table_name);
+    // index
     for (Identifier ind_name : index_names) {
         DbIndex& index = SQLExec::indices->get_index(table_name, ind_name);
-        index.insert(insert_handle); // dummy for now
+        index.insert(insertHandle); // dummy for now
     }
+    //query index info
     string has_indices= "";
     if(index_names.size() >= 1){
-        has_indices += " and "+ index_names.size()+ " indices";
+        has_indices = " and "+ to_string(index_names.size())+ " indices";
     }
 
     return new QueryResult("Successfully inserted 1 row into "
-                           + table_name + " and " + to_string(index_size) + has_indices);
+                           + table_name + has_indices);
 }
 
 QueryResult *SQLExec::del(const DeleteStatement *statement) {
-    return new QueryResult("DELETE statement not yet implemented");  // FIXME
+//    Identifier table_name = statement->tableName;
+//    DbRelation& table = SQLExec::tables->get_table(table_name);
+//
+//    EvalPlan* plan = new EvalPlan(table);
+//    if (statement->expr != nullptr)
+//        plan = new EvalPlan(get_where_conjunction(statement->expr), plan);
+//
+//    EvalPlan *optimized = plan->optimize();
+//
+//    EvalPipeline pipe = optimized->pipeline();
+//
+//    return new QueryResult("DELETE statement not yet implemented");  // FIXME
 }
 
 QueryResult *SQLExec::select(const SelectStatement *statement) {
-    return new QueryResult("SELECT statement not yet implemented");  // FIXME
+
+    Identifier table_name = statement->fromTable->getName();
+    DbRelation& table = SQLExec::tables->get_table(table_name);
+    ColumnNames *column_names = new ColumnNames;
+    ColumnAttributes *column_attributes = table.get_column_attributes(*column_names);
+    //stat base of plan at tablescan
+    EvalPlan *plan = new EvalPlan(table);
+    ValueDict where;
+    //
+    if(statement->whereClause != nullptr){
+        plan = new EvalPlan(get_where_conjunction(statement->whereClause, &where), plan);
+    }
+    if (statement->selectList != nullptr){
+        for (auto const& expr : *statement->selectList)
+        {
+            if (expr->type == kExprStar){
+                ColumnNames get_column_names = table.get_column_names();
+
+                for (auto const &col : get_column_names)
+                    column_names->push_back(col);
+            }else if (expr->type == kExprColumnRef)
+                column_names->push_back(string(expr->name));
+
+            else{
+                    column_names->push_back(string(expr->name));
+
+            }
+        }
+        plan = new EvalPlan(column_names, plan);
+
+    }
+
+    EvalPlan *optimized = plan->optimize();
+    ValueDicts *rows = optimized->evaluate();
+
+    return new QueryResult(column_names, column_attributes, rows,
+                           "successfully returned " + to_string(rows->size()) + " rows");
 }
 
 // Defines data type of column, stores data identifier and attribute

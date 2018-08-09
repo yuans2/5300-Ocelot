@@ -89,7 +89,8 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) throw(SQLExecError)
         throw SQLExecError(string("DbRelationError: ") + e.what());
     }
 }
-ValueDict* SQLExec::get_where_conjunction(const Expr *expr, ValueDict *where){
+ValueDict* SQLExec::get_where_conjunction(const Expr *expr){
+    ValueDict* where = new ValueDict();
 
     if (expr->type == hsql::kExprOperator)
     {
@@ -113,12 +114,15 @@ ValueDict* SQLExec::get_where_conjunction(const Expr *expr, ValueDict *where){
 
 
         }
+        //FIX AND
+        }else if (expr->opType == hsql::Expr::AND) {
+            ValueDict* left_where= get_where_conjunction(expr->expr);
+            ValueDict* right_where= get_where_conjunction(expr->expr2);
 
-        }else if (expr->opType == Expr::AND) {
-            ValueDict* left_where= get_where_conjunction(expr->expr, where);
-            ValueDict* right_where= get_where_conjunction(expr->expr2, where);
-
-
+            where->insert(left_where->begin(), left_where->end());
+            where->insert(right_where->begin(), right_where->end());
+            delete left_where;
+            delete right_where;
         }
         else {
             throw  DbRelationError("Invalid where statement");
@@ -186,20 +190,58 @@ QueryResult *SQLExec::insert(const InsertStatement *statement) {
                            + table_name + has_indices);
 }
 
-QueryResult *SQLExec::del(const DeleteStatement *statement) {
-//    Identifier table_name = statement->tableName;
-//    DbRelation& table = SQLExec::tables->get_table(table_name);
-//
-//    EvalPlan* plan = new EvalPlan(table);
-//    if (statement->expr != nullptr)
-//        plan = new EvalPlan(get_where_conjunction(statement->expr), plan);
-//
-//    EvalPlan *optimized = plan->optimize();
-//
-//    EvalPipeline pipe = optimized->pipeline();
-//
-//    return new QueryResult("DELETE statement not yet implemented");  // FIXME
+
+
+// DELETE FROM ...
+QueryResult *SQLExec::del(const DeleteStatement *statement)
+{
+    // return new QueryResult("DELETE statement not yet implemented"); // FIXME
+
+    // get table name
+    Identifier table = statement->tableName;
+
+//    if (ensure_table_exist(table) == false)
+//        throw SQLExecError(table + " does not exist");
+
+    // get table and where clauses
+    DbRelation &tb = SQLExec::tables->get_table(table);
+
+    // make the evaluation plan
+    EvalPlan *plan = new EvalPlan(tb);
+
+    if (statement->expr != NULL)
+        plan = new EvalPlan(get_where_conjunction(statement->expr), plan);
+
+    // and execute it to get a list of handles
+
+    EvalPlan *ep = plan->optimize();
+    EvalPipeline pipeline = ep->pipeline();
+    Handles *handles = pipeline.second;
+
+    // remove from indices
+    auto index_names = SQLExec::indices->get_index_names(table);
+
+    u_long n = 0;
+    u_long m = index_names.size();
+
+    for (auto const &handle : *handles)
+    {
+        n++;
+        for (auto const index_name : index_names)
+        {
+            DbIndex &index = SQLExec::indices->get_index(table, index_name);
+            index.del(handle);
+        }
+        // remove from table
+        tb.del(handle);
+    }
+    string has_indices= "";
+
+
+    return new QueryResult("successfully deleted " + to_string(n)+ " rows from "+ table + to_string(m)+ " indices");
 }
+
+
 
 QueryResult *SQLExec::select(const SelectStatement *statement) {
 
@@ -209,10 +251,10 @@ QueryResult *SQLExec::select(const SelectStatement *statement) {
     ColumnAttributes *column_attributes = table.get_column_attributes(*column_names);
     //stat base of plan at tablescan
     EvalPlan *plan = new EvalPlan(table);
-    ValueDict where;
     //
+    //ValueDict where;
     if(statement->whereClause != nullptr){
-        plan = new EvalPlan(get_where_conjunction(statement->whereClause, &where), plan);
+        plan = new EvalPlan(get_where_conjunction(statement->whereClause), plan);
     }
     if (statement->selectList != nullptr){
         for (auto const& expr : *statement->selectList)

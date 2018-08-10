@@ -13,7 +13,7 @@ BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_co
 }
 
 BTreeIndex::~BTreeIndex() {
-	// FIXME - free up stuff
+
 }
 
 // Create the index.

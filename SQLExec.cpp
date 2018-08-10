@@ -5,6 +5,7 @@
  */
 #include "SQLExec.h"
 #include "EvalPlan.h"
+#include "btree.h"
 #include "ParseTreeToString.h"
 
 using namespace std;
@@ -94,7 +95,16 @@ ValueDict* SQLExec::get_where_conjunction(const Expr *expr){
 
     if (expr->type == hsql::kExprOperator)
     {
-        if (expr->opType == hsql::Expr::SIMPLE_OP &&  expr->opChar == '=')
+        if (expr->opType == hsql::Expr::AND) {
+            ValueDict* left_where= get_where_conjunction(expr->expr);
+            ValueDict* right_where= get_where_conjunction(expr->expr2);
+
+            where->insert(left_where->begin(), left_where->end());
+            where->insert(right_where->begin(), right_where->end());
+            delete left_where;
+            delete right_where;
+        }
+        else if (expr->opType == hsql::Expr::SIMPLE_OP &&  expr->opChar == '=')
         {
             Identifier identifier = expr->expr->name;
 
@@ -112,21 +122,12 @@ ValueDict* SQLExec::get_where_conjunction(const Expr *expr){
                     break;
             }
 
-
-        }
         //FIX AND
-        }else if (expr->opType == hsql::Expr::AND) {
-            ValueDict* left_where= get_where_conjunction(expr->expr);
-            ValueDict* right_where= get_where_conjunction(expr->expr2);
-
-            where->insert(left_where->begin(), left_where->end());
-            where->insert(right_where->begin(), right_where->end());
-            delete left_where;
-            delete right_where;
         }
         else {
             throw  DbRelationError("Invalid where statement");
         }
+    }
     return where;
 }
 
@@ -238,7 +239,7 @@ QueryResult *SQLExec::del(const DeleteStatement *statement)
     string has_indices= "";
 
 
-    return new QueryResult("successfully deleted " + to_string(n)+ " rows from "+ table + to_string(m)+ " indices");
+    return new QueryResult("successfully deleted " + to_string(n)+ " rows from  "+ table +" "+ to_string(m)+ " indices");
 }
 
 

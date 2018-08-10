@@ -14,6 +14,20 @@ BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_co
         this->build_key_profile();
 }
 
+//Figure out the data types of each key component and encode them in self.key_profile,
+//            a list of int/str classes.
+void build_key_profile(){
+    // FIXME TEMP using python code
+    //check if  self.key in self.key_profile = [types_by_colname[column_name] for column_name in self.key]
+    ColumnNames column_names = this->relation.get_column_names();
+    ColumnAttributes column_attributes = this->relation.get_column_attributes();
+    for (uint i = 0; i < column_names.size(); i++) {
+        this->key_profile.push_back(column_attributes[i].get_data_type());
+    }
+
+
+}
+
 BTreeIndex::~BTreeIndex() {
     delete(this->stat);
     delete(this->root);
@@ -65,7 +79,10 @@ void BTreeIndex::close() {
 
 
 }
-
+/*
+ * LOOKUP
+ * split into two sections, recursively search down the tree
+ * */
 // Find all the rows whose columns are equal to key. Assumes key is a dictionary whose keys are the column
 // names in the index. Returns a list of row handles.
 Handles* BTreeIndex::lookup(ValueDict* key_dict) const {
@@ -88,23 +105,83 @@ Handle* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) c
     else{
         //BTree Node line210 - find verify , go down
         BTreeInterior* inter= node;
-        this->lookup((inter->find(key, this->stat->get_height()), this->stat->get_height()-1, _tKey);
+        this->lookup((inter->find(key, this->stat->get_height()), this->stat->get_height()-1, _tKey));
     }
 }
 
+
+//Finds all the rows whose columns are such that minkey <= columns <= maxkey.  Assumes key is a dictionary
+//    whose keys are the column names in the index. Returns a list of row handles.
+//Some index subclasses do not support range().
 Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
-    throw DbRelationError("Don't know how to do a range query on Btree index yet");
+    //throw DbRelationError("Don't know how to do a range query on Btree index yet");
     // FIXME TEMP using python code
+    KeyValue* tmin= this->tkey(min_key);
+    KeyValue* tmax= this->tkey(max_key);
+    Handles* start= this->_lookup(this->root, this->stat->get_height(), tmin);
+    for(auto const& k: start){
+        if(k== nullptr && k >= tmin){
+            return;
+        }
+        if(tmin == nullptr && k >= tmin){
+            // yield start.keys[tkey] if not return_keys else tkey
+
+        }
+    }
+    //TODO
+
 }
 
+/*
+ * INSERTION
+ * need split root to add new root index
+ * */
 // Insert a row with the given handle. Row must exist in relation already.
 void BTreeIndex::insert(Handle handle) {
 	// FIXME TEMP using python code
-}
+	this->open();
+	ValueDict* dict= this->relation->project(handle, this->key_columns);
+	KeyValue* t_Key = this->tkey(dict);
+	Insertion split_root = this->_insert(this->root,this->stat->get_height(),t_Key, handle);
+    if(split_root != nullptr){
+        split_root(split_root, this->root, this->stat->get_height());
+	}
 
+}
+//reformat root passed by insert
+void split_root(Insertion split_root, BTreeNode* node, uint height ){
+    BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
+    root->set_first(this->root->get_id());
+    root->insert(split_root.second, split_root.first); //height/id
+    root->save();
+    this->stat->set_root_id(root->get_id());
+    uint temp_height= this->stat->get_height() + 1;
+    this->stat->set_height(temp_height);
+    this->stat->save();
+    this->root = root;
+
+}
 void BTreeIndex::del(Handle handle) {
-    throw DbRelationError("Don't know how to delete from a BTree index yet");
+    //throw DbRelationError("Don't know how to delete from a BTree index yet");
 	// FIXME TEMP using python code
+    KeyValue* t_Key = this->tkey(this->relation.project(handle));
+    Handles* leaf = this->_lookup(this->root, this->stat->get_height(),t_Key);
+    //FIXME
+    if(leaf == nullptr){
+        throw DbRelationError("key to be deleted not found in index");
+    }
+    for(auto const& handle : *leaf){
+        this->relation->del(handle); //check later
+
+    }
+    //TODO
+    leaf->save();//something
+
+    //save
+    //correct this, no idea how to save tree
+
+
+    //tree never shrinks -- if all keys get deleted we still have an empty shell of tree
 }
 
 KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
@@ -124,19 +201,7 @@ KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
         }
     }
 }
-//Figure out the data types of each key component and encode them in self.key_profile,
-//            a list of int/str classes.
-void build_key_profile(){
-    // FIXME TEMP using python code
-    //check if  self.key in self.key_profile = [types_by_colname[column_name] for column_name in self.key]
-    ColumnNames column_names = this->relation.get_column_names();
-    ColumnAttributes column_attributes = this->relation.get_column_attributes();
-    for (uint i = 0; i < column_names.size(); i++) {
-        this->key_profile.push_back(column_attributes[i].get_data_type());
-    }
 
-
-}
 
 
 

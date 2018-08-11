@@ -148,6 +148,32 @@ void BTreeIndex::insert(Handle handle) {
 	}
 
 }
+//recursively insert
+Insertion BTreeIndex::_insert(BTreeNode *node, uint height, const KeyValue* key, Handle handle) {
+    // Recursive insert. If a split happens at this level, return the (new node, boundary) of the split.
+    Insertion insertion;
+    if (height == 1)
+        try{
+            insertion = ((BTreeLeaf*)node)->insert(&key, handle);
+        }
+        catch (DbException &exe){
+            //todo split_leaf()
+        }
+
+    else {
+        Insertion new_kid = _insert(((BTreeInterior*)node)->find(key, height), height - 1, key, handle);
+        if (BTreeNode::insertion_is_none(new_kid) == false){
+            try{
+                insertion = ((BTreeInterior*)node)->insert(&new_kid.second, new_kid.first);
+            }
+            catch (DbException &exe){
+                //todo split_leaf()
+            }
+
+        }
+    }
+    return insertion;
+}
 //reformat root passed by insert
 void split_root(Insertion split_root, BTreeNode* node, uint height ){
     BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
@@ -175,7 +201,7 @@ void BTreeIndex::del(Handle handle) {
 
     }
     //TODO
-    leaf->save();//something
+    //leaf->save();//something
 
     //save
     //correct this, no idea how to save tree
@@ -195,9 +221,7 @@ KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
         for(auto const& col: this->key_columns){
             //FIXME
             Value value = key->second;
-
             keyValue->push_back(value);
-
         }
     }
 }

@@ -115,20 +115,8 @@ Handle* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) c
 //Some index subclasses do not support range().
 Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
     //throw DbRelationError("Don't know how to do a range query on Btree index yet");
-    // FIXME TEMP using python code
-    KeyValue* tmin= this->tkey(min_key);
-    KeyValue* tmax= this->tkey(max_key);
-    Handles* start= this->_lookup(this->root, this->stat->get_height(), tmin);
-    for(auto const& k: start){
-        if(k== nullptr && k >= tmin){
-            return;
-        }
-        if(tmin == nullptr && k >= tmin){
-            // yield start.keys[tkey] if not return_keys else tkey
 
-        }
-    }
-    //TODO
+
 
 }
 
@@ -188,23 +176,8 @@ void split_root(Insertion split_root, BTreeNode* node, uint height ){
 
 }
 void BTreeIndex::del(Handle handle) {
-    //throw DbRelationError("Don't know how to delete from a BTree index yet");
+    throw DbRelationError("Don't know how to delete from a BTree index yet");
 	// FIXME TEMP using python code
-    KeyValue* t_Key = this->tkey(this->relation.project(handle));
-    Handles* leaf = this->_lookup(this->root, this->stat->get_height(),t_Key);
-    //FIXME
-    if(leaf == nullptr){
-        throw DbRelationError("key to be deleted not found in index");
-    }
-    for(auto const& handle : *leaf){
-        this->relation->del(handle); //check later
-
-    }
-    //TODO
-    //leaf->save();//something
-
-    //save
-    //correct this, no idea how to save tree
 
 
     //tree never shrinks -- if all keys get deleted we still have an empty shell of tree

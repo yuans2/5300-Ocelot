@@ -7,6 +7,7 @@
 
 #include "db_cxx.h"
 #include "SQLExec.h"
+#include "btree.h"
 #include "ParseTreeToString.h"
 
 using namespace std;
@@ -49,9 +50,9 @@ int main(int argc, char *argv[])
 	
 	std::cout << "Usage:" << std::endl;
 	std::cout << "	Type SQL to get translated SQL back;" << std::endl;
-	std::cout << "	Type test_slotted_page to run SlottedPage unit test;" << std::endl;
-	std::cout << "	Type test_heap_file to run HeapFile unit test;" << std::endl;
-	std::cout << "	Type test_heap_table to run HeapTable unit test;" << std::endl;
+	//std::cout << "	Type test_slotted_page to run SlottedPage unit test;" << std::endl;
+	//std::cout << "	Type test_heap_file to run HeapFile unit test;" << std::endl;
+	//std::cout << "	Type test_heap_table to run HeapTable unit test;" << std::endl;
 	
 	_DB_ENV = env;
 
@@ -94,6 +95,7 @@ int main(int argc, char *argv[])
 //		}
 		if (query == "test") {
 			cout << "test_heap_storage: " << (test_heap_storage() ? "ok" : "failed") << endl;
+			cout << "test_btree: "<< (test_btree() ? "ok" : "failed") << endl;
 			continue;
 		}
 		else

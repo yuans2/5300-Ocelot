@@ -17,6 +17,7 @@ public:
     virtual Handles* range(ValueDict* min_key, ValueDict* max_key) const;
 
     virtual void insert(Handle handle);
+    //virtual void split_root(Insertion split_root, BTreeNode* node, uint height );
     virtual void del(Handle handle);
 
     virtual KeyValue *tkey(const ValueDict *key) const; // pull out the key values from the ValueDict in order

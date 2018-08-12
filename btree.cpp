@@ -1,4 +1,5 @@
 #include "btree.h"
+using namespace std;
 
 BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_columns, bool unique)
         : DbIndex(relation, name, key_columns, unique),
@@ -9,25 +10,23 @@ BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_co
           key_profile() {
     if (!unique)
         throw DbRelationError("BTree index must have unique key");
-	// FIXME - what else?!  TEMP using python code
-        this->BtreeIndex(relation,name, unique);
-        this->build_key_profile();
+        build_key_profile();
 }
-
+//Build Profile
 //Figure out the data types of each key component and encode them in self.key_profile,
 //            a list of int/str classes.
-void build_key_profile(){
+void BTreeIndex::build_key_profile(){
     // FIXME TEMP using python code
-    //check if  self.key in self.key_profile = [types_by_colname[column_name] for column_name in self.key]
     ColumnNames column_names = this->relation.get_column_names();
     ColumnAttributes column_attributes = this->relation.get_column_attributes();
     for (uint i = 0; i < column_names.size(); i++) {
+
         this->key_profile.push_back(column_attributes[i].get_data_type());
+
     }
 
-
 }
-
+//destructor
 BTreeIndex::~BTreeIndex() {
     delete(this->stat);
     delete(this->root);
@@ -36,7 +35,7 @@ BTreeIndex::~BTreeIndex() {
 
 // Create the index.
 void BTreeIndex::create() {
-	// FIXME TEMP using python code
+
     this->file.create();
     this->stat = new BTreeStat(this->file, this->STAT, this->STAT + 1, this->key_profile);
     this->root = new BTreeLeaf(this->file, this->stat->get_root_id(), this->key_profile, true);
@@ -50,16 +49,15 @@ void BTreeIndex::create() {
 
 // Drop the index.
 void BTreeIndex::drop() {
-	// FIXME TEMP using python code
+
     this->file.drop();
 }
 
 // Open existing index. Enables: lookup, range, insert, delete, update.
 void BTreeIndex::open() {
-	// FIXME TEMP using python code
     if(this->closed){
         this->file.open();
-        this->stat = new BTreeStat(this->file,this->STAT);
+        this->stat = new BTreeStat(this->file,this->STAT, this->key_profile);
         if (this->stat->get_height() == 1)
             this->root = new BTreeLeaf(this->file, this->stat->get_root_id(), this->key_profile, false);
         else
@@ -71,12 +69,10 @@ void BTreeIndex::open() {
 
 // Closes the index. Disables: lookup, range, insert, delete, update.
 void BTreeIndex::close() {
-	// FIXME TEMP using python code
     this->file.close();
     this->stat = nullptr;
     this->root = nullptr;
     this->closed = true;
-
 
 }
 /*
@@ -86,38 +82,32 @@ void BTreeIndex::close() {
 // Find all the rows whose columns are equal to key. Assumes key is a dictionary whose keys are the column
 // names in the index. Returns a list of row handles.
 Handles* BTreeIndex::lookup(ValueDict* key_dict) const {
-	// FIXME TEMP using python code
-    this->open();
+
     KeyValue* tkey_val= this->tkey(key_dict);
     Handles* handles = new Handles();
-    Handle handle;
-    handle= this->_lookup(this->root, this->stat->get_height(), _tKey);
-    handles->push_back(handle);
+    handles= this->_lookup(this->root, this->stat->get_height(), tkey_val);
     return handles;
 }
-Handle* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) const {
-   Handle* handle = new Handle();
+Handles* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) const {
+    //handles for lookup
+    Handles* handles = new Handles();
+    //get a handle
+    Handle handle;
     if(height==1){
-        BTreeLeaf* leaf= node;
-        handle= leaf->find_eq(key);
-        return handle;
+        handle = ((BTreeLeaf*)node)->find_eq(key);
+        handles->push_back(handle);
+        return handles;
     }
     else{
-        //BTree Node line210 - find verify , go down
-        BTreeInterior* inter= node;
-        this->lookup((inter->find(key, this->stat->get_height()), this->stat->get_height()-1, _tKey));
+        BTreeInterior* inter= (BTreeInterior*)node;
+        return this->_lookup((inter->find(key, this->stat->get_height())), this->stat->get_height()-1, key);
     }
 }
 
 
-//Finds all the rows whose columns are such that minkey <= columns <= maxkey.  Assumes key is a dictionary
-//    whose keys are the column names in the index. Returns a list of row handles.
-//Some index subclasses do not support range().
+//RANGE
 Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
-    //throw DbRelationError("Don't know how to do a range query on Btree index yet");
-
-
-
+    throw DbRelationError("Don't know how to do a range query on Btree index yet");
 }
 
 /*
@@ -126,13 +116,22 @@ Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
  * */
 // Insert a row with the given handle. Row must exist in relation already.
 void BTreeIndex::insert(Handle handle) {
-	// FIXME TEMP using python code
 	this->open();
-	ValueDict* dict= this->relation->project(handle, this->key_columns);
+	ValueDict* dict= this->relation.project(handle, &key_columns);
 	KeyValue* t_Key = this->tkey(dict);
 	Insertion split_root = this->_insert(this->root,this->stat->get_height(),t_Key, handle);
-    if(split_root != nullptr){
-        split_root(split_root, this->root, this->stat->get_height());
+    if(!BTreeNode::insertion_is_none(split_root) ){
+        //split_root(split_root_in, this->root, this->stat->get_height());
+        BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
+        root->set_first(this->root->get_id());
+        root->insert(&split_root.second, split_root.first); //height/id
+        root->save();
+        this->stat->set_root_id(root->get_id());
+        uint temp_height= this->stat->get_height() + 1;
+        this->stat->set_height(temp_height);
+        this->stat->save();
+
+        this->root = root;
 	}
 
 }
@@ -141,64 +140,164 @@ Insertion BTreeIndex::_insert(BTreeNode *node, uint height, const KeyValue* key,
     // Recursive insert. If a split happens at this level, return the (new node, boundary) of the split.
     Insertion insertion;
     if (height == 1)
-        try{
-            insertion = ((BTreeLeaf*)node)->insert(&key, handle);
-        }
-        catch (DbException &exe){
-            //todo split_leaf()
-        }
+
+        insertion = ((BTreeLeaf*)node)->insert(key, handle);
 
     else {
-        Insertion new_kid = _insert(((BTreeInterior*)node)->find(key, height), height - 1, key, handle);
-        if (BTreeNode::insertion_is_none(new_kid) == false){
-            try{
-                insertion = ((BTreeInterior*)node)->insert(&new_kid.second, new_kid.first);
-            }
-            catch (DbException &exe){
-                //todo split_leaf()
-            }
+        Insertion new_insertion = _insert(((BTreeInterior*)node)->find(key, height), height - 1, key, handle);
+        if (!BTreeNode::insertion_is_none(new_insertion)){
+
+            insertion = ((BTreeInterior*)node)->insert(&new_insertion.second, new_insertion.first);
 
         }
     }
     return insertion;
 }
-//reformat root passed by insert
-void split_root(Insertion split_root, BTreeNode* node, uint height ){
-    BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
-    root->set_first(this->root->get_id());
-    root->insert(split_root.second, split_root.first); //height/id
-    root->save();
-    this->stat->set_root_id(root->get_id());
-    uint temp_height= this->stat->get_height() + 1;
-    this->stat->set_height(temp_height);
-    this->stat->save();
-    this->root = root;
 
-}
 void BTreeIndex::del(Handle handle) {
     throw DbRelationError("Don't know how to delete from a BTree index yet");
 	// FIXME TEMP using python code
 
-
-    //tree never shrinks -- if all keys get deleted we still have an empty shell of tree
 }
-
 KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
 
-	// FIXME TEMP using python code
-    if(key == nullptr){
-        return nullptr;
-    }
-    else{
         KeyValue* keyValue = new KeyValue();
-        for(auto const& col: this->key_columns){
-            //FIXME
-            Value value = key->second;
-            keyValue->push_back(value);
+        //get Value from key
+        for(auto const col: *key){
+            keyValue->push_back(col.second);
+        }
+        return keyValue;
+
+}
+//BTREE TESTING
+bool test_btree(){
+
+    Identifier testID= "test_btree";
+    ColumnNames columnNames;
+    columnNames.push_back("a");
+    columnNames.push_back("b");
+    ColumnAttributes colAttributes;
+    ColumnAttribute ca;
+    ColumnAttribute ca2;
+    ca= ColumnAttribute::INT;
+    ca2= ColumnAttribute::INT;
+    colAttributes.push_back(ca);
+    colAttributes.push_back(ca2);
+    HeapTable table(testID, columnNames, colAttributes);
+    table.create();
+    //for inserts
+    ValueDict row1;
+    ValueDict row2;
+    //For results
+    ValueDict result_1;
+    ValueDict result_2;
+    ValueDict result_3;
+    ValueDict result_4;
+
+    //append values
+    row1["a"] = Value(12);
+    row1["b"] = Value(99);
+    row2["a"] = Value(88);
+    row2["b"] = Value(101);
+
+    //test values
+    result_1["a"]= Value(12);
+    result_2["a"]= Value(88);
+    result_3["a"]= Value(6);
+
+    table.insert(&row1);
+    table.insert(&row2);
+    ValueDict row;
+    ColumnNames columnNames2;
+    columnNames2.push_back("a");
+    columnNames2.push_back("b");
+    for (uint i = 1; i < 1000; i++) {
+        row["a"] = Value(i + 100);
+        row["b"] = Value(-i);
+        table.insert(&row);
+    }
+    DbIndex* index = new BTreeIndex(table, "test_btreeIndex", columnNames2, true);
+    index->create();
+
+    //test 1
+    bool result=false;
+    Handles* handles_t1 = new Handles();
+
+    handles_t1 = index->lookup(&result_1);
+    for(auto const& handle: *handles_t1){
+        ValueDict* row_proj = table.project(handle);
+        if((*row_proj)["a"] == result_1["a"] ){
+            cout<<"pass t1"<<endl;
+            result= true;
+        }
+        delete  row_proj;
+    }
+    if(!result){
+        cout<<"failed t1" << endl;
+    }
+    result= false;
+    delete  handles_t1;
+
+    //t2
+    result=false;
+    Handles* handles_t2 = new Handles();
+    handles_t2 = index->lookup(&result_2);
+    for(auto const& handle: *handles_t2){
+        ValueDict* row_proj = table.project(handle);
+        if((*row_proj)["a"] == result_2["a"] ){
+            cout<<"pass t2"<<endl;
+            result= true;
+        }
+        delete  row_proj;
+    }
+    if(!result){
+        cout<<"failed t2"<<endl;
+    }
+    result= false;
+    delete  handles_t2;
+
+    //t3
+    result=false;
+    Handles* handles_t3 = new Handles();
+    handles_t3 = index->lookup(&result_3);
+    for(auto const& handle: *handles_t3){
+        ValueDict* row_proj = table.project(handle);
+        if((*row_proj)["a"] == result_3["a"] ){
+            cout<<"pass t3"<<endl;
+            result= true;
+        }
+        delete  row_proj;
+    }
+    if(!result){
+        cout<<"failed t3"<<endl;
+    }
+    result= false;
+    delete  handles_t3;
+//t4
+    Handles* handles_t4 = new Handles();
+    for (uint j = 0; j <10 ; j++) {
+        for (uint i = 0; j < 1000; j++) {
+            result_4["a"]= Value(i + 100);
+            result_4["a"]= Value(-i);
+             handles_t4 = index->lookup(&result_4);
+            for (auto const& handle : *handles_t4) {
+                ValueDict* row_proj = table.project(handle);
+                if ((*row_proj)["a"] == result_4["a"] &&(*row_proj)["b"] == result_4["b"]) {
+                    result = true;
+                }
+                delete row_proj;
+            }
+
         }
     }
+    if(!result){
+        cout<<"failed t4"<<endl;
+    }
+    delete handles_t4;
+    delete index;
+    table.drop();
+    return result;
 }
-
 
 
 

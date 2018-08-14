@@ -346,6 +346,7 @@ BTreeLeaf::~BTreeLeaf() {
 // Find the handle for a given key
 Handle BTreeLeaf::find_eq(const KeyValue* key) const {
     return this->key_map.at(*key);
+
 }
 
 // Save the key_map and next_leaf data in the correct order

@@ -2,15 +2,14 @@
  * @file sql5300.cpp - main entry for the relation manaager's SQL shell
  * @see "Seattle University, cpsc4300/5300, summer 2018"
  */
-
+#include <iostream>
 #include <algorithm>
-
 #include "db_cxx.h"
+#include "ParseTreeToString.h"
 #include "SQLExec.h"
 #include "btree.h"
-#include "ParseTreeToString.h"
-
 using namespace std;
+using namespace hsql;
 
 const int MAXPATHLENGTH = 1024;
 
@@ -95,7 +94,8 @@ int main(int argc, char *argv[])
 //		}
 		if (query == "test") {
 			cout << "test_heap_storage: " << (test_heap_storage() ? "ok" : "failed") << endl;
-			cout << "test_btree: "<< (test_btree() ? "ok" : "failed") << endl;
+			cout<<"TEST BTREE LINE_____"<< endl;
+			cout << "test_btree: "<<(test_btree() ? "ok" : "failed") << endl;
 			continue;
 		}
 		else

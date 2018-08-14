@@ -1,4 +1,7 @@
+#include <iostream>       // std::cerr
+#include <stdexcept>
 #include "btree.h"
+
 using namespace std;
 
 BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_columns, bool unique)
@@ -16,12 +19,10 @@ BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_co
 //Figure out the data types of each key component and encode them in self.key_profile,
 //            a list of int/str classes.
 void BTreeIndex::build_key_profile(){
-    // FIXME TEMP using python code
-    ColumnNames column_names = this->relation.get_column_names();
-    ColumnAttributes column_attributes = this->relation.get_column_attributes();
-    for (uint i = 0; i < column_names.size(); i++) {
 
-        this->key_profile.push_back(column_attributes[i].get_data_type());
+    ColumnAttributes* column_attributes = this->relation.get_column_attributes(this->key_columns);
+    for (ColumnAttribute col: *column_attributes) {
+        this->key_profile.push_back(col.get_data_type());
 
     }
 
@@ -30,7 +31,7 @@ void BTreeIndex::build_key_profile(){
 BTreeIndex::~BTreeIndex() {
     delete(this->stat);
     delete(this->root);
-    drop();
+
 }
 
 // Create the index.
@@ -45,6 +46,7 @@ void BTreeIndex::create() {
     for (auto const& handle : *all_rows_handle) {
         this->insert(handle);
     }
+    delete all_rows_handle;
 }
 
 // Drop the index.
@@ -82,11 +84,9 @@ void BTreeIndex::close() {
 // Find all the rows whose columns are equal to key. Assumes key is a dictionary whose keys are the column
 // names in the index. Returns a list of row handles.
 Handles* BTreeIndex::lookup(ValueDict* key_dict) const {
-
     KeyValue* tkey_val= this->tkey(key_dict);
-    Handles* handles = new Handles();
-    handles= this->_lookup(this->root, this->stat->get_height(), tkey_val);
-    return handles;
+    return this->_lookup(this->root, this->stat->get_height(), tkey_val);
+
 }
 Handles* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) const {
     //handles for lookup
@@ -94,20 +94,26 @@ Handles* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) 
     //get a handle
     Handle handle;
     if(height==1){
-        handle = ((BTreeLeaf*)node)->find_eq(key);
-        handles->push_back(handle);
+
+        try{
+            BTreeLeaf* leaf = (BTreeLeaf*)node;
+            handle = leaf->find_eq(key);
+
+            handles->push_back(handle);
+
+
+        }
+        //displays out of range if looking up empty leaf
+        catch (const std::out_of_range& oor) {
+            std::cerr << "Out of Range error: " << oor.what() << '\n';
+        }
+
         return handles;
     }
     else{
         BTreeInterior* inter= (BTreeInterior*)node;
-        return this->_lookup((inter->find(key, this->stat->get_height())), this->stat->get_height()-1, key);
+        return _lookup((inter->find(key, this->stat->get_height())), this->stat->get_height()-1, key);
     }
-}
-
-
-//RANGE
-Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
-    throw DbRelationError("Don't know how to do a range query on Btree index yet");
 }
 
 /*
@@ -116,16 +122,18 @@ Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
  * */
 // Insert a row with the given handle. Row must exist in relation already.
 void BTreeIndex::insert(Handle handle) {
-	this->open();
+	//this->open();
 	ValueDict* dict= this->relation.project(handle, &key_columns);
 	KeyValue* t_Key = this->tkey(dict);
 	Insertion split_root = this->_insert(this->root,this->stat->get_height(),t_Key, handle);
     if(!BTreeNode::insertion_is_none(split_root) ){
+
         //split_root(split_root_in, this->root, this->stat->get_height());
         BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
         root->set_first(this->root->get_id());
         root->insert(&split_root.second, split_root.first); //height/id
         root->save();
+
         this->stat->set_root_id(root->get_id());
         uint temp_height= this->stat->get_height() + 1;
         this->stat->set_height(temp_height);
@@ -139,43 +147,53 @@ void BTreeIndex::insert(Handle handle) {
 Insertion BTreeIndex::_insert(BTreeNode *node, uint height, const KeyValue* key, Handle handle) {
     // Recursive insert. If a split happens at this level, return the (new node, boundary) of the split.
     Insertion insertion;
-    if (height == 1)
+    if (height == 1){
+        BTreeLeaf* leaf = (BTreeLeaf*)node;
+        insertion = (leaf)->insert(key, handle);
+        leaf->save();
 
-        insertion = ((BTreeLeaf*)node)->insert(key, handle);
-
+    }
     else {
-        Insertion new_insertion = _insert(((BTreeInterior*)node)->find(key, height), height - 1, key, handle);
+        BTreeInterior* inter = (BTreeInterior*)node;
+        Insertion new_insertion = _insert((inter)->find(key, height), height - 1, key, handle);
         if (!BTreeNode::insertion_is_none(new_insertion)){
-
             insertion = ((BTreeInterior*)node)->insert(&new_insertion.second, new_insertion.first);
-
+            inter->save();
         }
+
+
     }
     return insertion;
 }
 
+KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
+    KeyValue* keyValue = new KeyValue();
+    //get Value from key
+    for(auto const& col: this->key_columns){
+
+        keyValue->push_back(key->at(col));
+    }
+    return keyValue;
+
+}
+
 void BTreeIndex::del(Handle handle) {
     throw DbRelationError("Don't know how to delete from a BTree index yet");
-	// FIXME TEMP using python code
 
 }
-KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
-
-        KeyValue* keyValue = new KeyValue();
-        //get Value from key
-        for(auto const col: *key){
-            keyValue->push_back(col.second);
-        }
-        return keyValue;
-
+//RANGE
+Handles* BTreeIndex::range(ValueDict* min_key, ValueDict* max_key) const {
+    throw DbRelationError("Don't know how to do a range query on Btree index yet");
 }
+
+
 //BTREE TESTING
 bool test_btree(){
-
+    bool result = false;
     Identifier testID= "test_btree";
-    ColumnNames columnNames;
-    columnNames.push_back("a");
-    columnNames.push_back("b");
+    ColumnNames colNames;
+    colNames.push_back("a");
+    colNames.push_back("b");
     ColumnAttributes colAttributes;
     ColumnAttribute ca;
     ColumnAttribute ca2;
@@ -183,117 +201,149 @@ bool test_btree(){
     ca2= ColumnAttribute::INT;
     colAttributes.push_back(ca);
     colAttributes.push_back(ca2);
-    HeapTable table(testID, columnNames, colAttributes);
+
+    HeapTable table(testID, colNames, colAttributes);
     table.create();
     //for inserts
-    ValueDict row1;
-    ValueDict row2;
-    //For results
-    ValueDict result_1;
-    ValueDict result_2;
-    ValueDict result_3;
-    ValueDict result_4;
+    ValueDict *row1= new ValueDict();
+    ValueDict *row2= new ValueDict();
 
     //append values
-    row1["a"] = Value(12);
-    row1["b"] = Value(99);
-    row2["a"] = Value(88);
-    row2["b"] = Value(101);
+    (*row1)["a"] = Value(12);
+    (*row1)["b"] = Value(99);
+    (*row2)["a"] = Value(88);
+    (*row2)["b"] = Value(101);
+
+    //For results
+    ValueDict *result_1 = new ValueDict();
+    ValueDict *result_2 = new ValueDict();
+    ValueDict *result_3 = new ValueDict();
+    ValueDict *result_4 = new ValueDict();
 
     //test values
-    result_1["a"]= Value(12);
-    result_2["a"]= Value(88);
-    result_3["a"]= Value(6);
+    (*result_1)["a"]= Value(12);
+    (*result_2)["a"]= Value(88);
+    (*result_3)["a"]= Value(6);
 
-    table.insert(&row1);
-    table.insert(&row2);
-    ValueDict row;
+    table.insert(row1);
+    table.insert(row2);
+
     ColumnNames columnNames2;
-    columnNames2.push_back("a");
-    columnNames2.push_back("b");
-    for (uint i = 1; i < 1000; i++) {
-        row["a"] = Value(i + 100);
-        row["b"] = Value(-i);
-        table.insert(&row);
+    columnNames2.push_back(colNames.at(0));
+
+
+    for (uint i = 0; i < 1000; i++) {
+        ValueDict *row = new ValueDict();
+        (*row)["a"] = Value(i + 100);
+        (*row)["b"] = Value(-i);
+        table.insert(row);
+        delete row;
     }
     DbIndex* index = new BTreeIndex(table, "test_btreeIndex", columnNames2, true);
     index->create();
 
-    //test 1
-    bool result=false;
-    Handles* handles_t1 = new Handles();
+    //t1 SHOULD BE SAME
 
-    handles_t1 = index->lookup(&result_1);
+    Handles* handles_t1 = new Handles();
+    handles_t1 = index->lookup(result_1);
+
     for(auto const& handle: *handles_t1){
         ValueDict* row_proj = table.project(handle);
-        if((*row_proj)["a"] == result_1["a"] ){
+        if((*row_proj)["a"] == (*result_1)["a"] ){
             cout<<"pass t1"<<endl;
             result= true;
+            delete  row_proj;
+            break;
         }
-        delete  row_proj;
-    }
-    if(!result){
-        cout<<"failed t1" << endl;
-    }
-    result= false;
-    delete  handles_t1;
+        else{
+            result = false;
+            cout<<"failed t1" << endl;
+            delete  row_proj;
+            break;
+        }
 
-    //t2
+    }
+    delete result_1;
+    delete  handles_t1;
+    //t2 SHOULD BE SAME
     result=false;
     Handles* handles_t2 = new Handles();
-    handles_t2 = index->lookup(&result_2);
+    handles_t2 = index->lookup(result_2);
     for(auto const& handle: *handles_t2){
         ValueDict* row_proj = table.project(handle);
-        if((*row_proj)["a"] == result_2["a"] ){
+        if((*row_proj)["a"] == (*result_2)["a"] ){
             cout<<"pass t2"<<endl;
             result= true;
+            delete  row_proj;
+            break;
         }
-        delete  row_proj;
+        else{
+            result = false;
+            cout<<"failed t2" << endl;
+            delete  row_proj;
+            break;
+        }
+
     }
-    if(!result){
-        cout<<"failed t2"<<endl;
-    }
-    result= false;
+    delete result_2;
     delete  handles_t2;
 
-    //t3
+    //t3 SHOULD BE EMPTY
     result=false;
     Handles* handles_t3 = new Handles();
-    handles_t3 = index->lookup(&result_3);
-    for(auto const& handle: *handles_t3){
-        ValueDict* row_proj = table.project(handle);
-        if((*row_proj)["a"] == result_3["a"] ){
-            cout<<"pass t3"<<endl;
-            result= true;
-        }
-        delete  row_proj;
-    }
-    if(!result){
-        cout<<"failed t3"<<endl;
-    }
-    result= false;
-    delete  handles_t3;
-//t4
-    Handles* handles_t4 = new Handles();
-    for (uint j = 0; j <10 ; j++) {
-        for (uint i = 0; j < 1000; j++) {
-            result_4["a"]= Value(i + 100);
-            result_4["a"]= Value(-i);
-             handles_t4 = index->lookup(&result_4);
-            for (auto const& handle : *handles_t4) {
-                ValueDict* row_proj = table.project(handle);
-                if ((*row_proj)["a"] == result_4["a"] &&(*row_proj)["b"] == result_4["b"]) {
-                    result = true;
-                }
-                delete row_proj;
+    handles_t3 = index->lookup(result_3);
+    if(handles_t3->empty()){
+        cout<<"pass t3"<<endl;
+        result= true;
+    }else{
+        for(auto const& handle: *handles_t3){
+            ValueDict* row_proj = table.project(handle);
+            if((*row_proj)["a"] == (*result_3)["a"] ){
+                cout<<"failed t3" << endl;
+                result= true;
+                delete  row_proj;
+                break;
+
             }
 
         }
     }
-    if(!result){
-        cout<<"failed t4"<<endl;
+
+
+    delete result_3;
+    delete  handles_t3;
+
+//t4
+    Handles* handles_t4 = new Handles();
+    for (uint j = 0; j <10 ; j++) {
+        for (uint i = 0; j < 1000; j++) {
+            (*result_4)["a"]= Value(i + 100);
+            (*result_4)["b"]= Value(-i);
+             handles_t4 = index->lookup(result_4);
+            for (auto const& handle : *handles_t4) {
+                ValueDict* row_proj = table.project(handle);
+                if ((*row_proj)["a"] == (*result_4)["a"] && (*row_proj)["b"] == (*result_4)["b"]) {
+                    result = true;
+                    delete  row_proj;
+                    break;
+                }
+                else{
+                    result = false;
+                    cout<<"failed t4" << endl;
+                    delete  row_proj;
+                    break;
+                }
+            }
+
+        }
     }
+    if(result){
+        cout<< "passed t4"<<endl;
+    }
+
     delete handles_t4;
+    delete row1;
+    delete row2;
     delete index;
     table.drop();
     return result;

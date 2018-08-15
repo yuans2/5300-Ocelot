@@ -3,7 +3,7 @@
 #include "btree.h"
 
 using namespace std;
-
+//The constructor of BTreeIndex
 BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_columns, bool unique)
         : DbIndex(relation, name, key_columns, unique),
           closed(true),
@@ -17,7 +17,7 @@ BTreeIndex::BTreeIndex(DbRelation& relation, Identifier name, ColumnNames key_co
 }
 //Build Profile
 //Figure out the data types of each key component and encode them in self.key_profile,
-//            a list of int/str classes.
+// a list of int/str classes.
 void BTreeIndex::build_key_profile(){
 
     ColumnAttributes* column_attributes = this->relation.get_column_attributes(this->key_columns);
@@ -38,11 +38,14 @@ BTreeIndex::~BTreeIndex() {
 void BTreeIndex::create() {
 
     this->file.create();
+	
     this->stat = new BTreeStat(this->file, this->STAT, this->STAT + 1, this->key_profile);
     this->root = new BTreeLeaf(this->file, this->stat->get_root_id(), this->key_profile, true);
     this->closed= false;
+	
     //build index , add every row from relation to index
     Handles* all_rows_handle= this->relation.select();
+	
     for (auto const& handle : *all_rows_handle) {
         this->insert(handle);
     }
@@ -59,7 +62,9 @@ void BTreeIndex::drop() {
 void BTreeIndex::open() {
     if(this->closed){
         this->file.open();
+	    
         this->stat = new BTreeStat(this->file,this->STAT, this->key_profile);
+	    
         if (this->stat->get_height() == 1)
             this->root = new BTreeLeaf(this->file, this->stat->get_root_id(), this->key_profile, false);
         else
@@ -110,6 +115,8 @@ Handles* BTreeIndex::_lookup(BTreeNode *node, uint height, const KeyValue *key) 
 
         return handles;
     }
+	
+     // Recursivly call look-up
     else{
         BTreeInterior* inter= (BTreeInterior*)node;
         return _lookup((inter->find(key, this->stat->get_height())), this->stat->get_height()-1, key);
@@ -125,22 +132,24 @@ void BTreeIndex::insert(Handle handle) {
 	//this->open();
 	ValueDict* dict= this->relation.project(handle, &key_columns);
 	KeyValue* t_Key = this->tkey(dict);
+	
 	Insertion split_root = this->_insert(this->root,this->stat->get_height(),t_Key, handle);
-    if(!BTreeNode::insertion_is_none(split_root) ){
+    	
+	if(!BTreeNode::insertion_is_none(split_root) ){
 
-        //split_root(split_root_in, this->root, this->stat->get_height());
-        BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
-        root->set_first(this->root->get_id());
-        root->insert(&split_root.second, split_root.first); //height/id
-        root->save();
 
-        this->stat->set_root_id(root->get_id());
-        uint temp_height= this->stat->get_height() + 1;
-        this->stat->set_height(temp_height);
-        this->stat->save();
+        	BTreeInterior* root = new BTreeInterior(this->file, 0, this->key_profile, true);
+        	root->set_first(this->root->get_id());
+        	root->insert(&split_root.second, split_root.first); //height/id
+        	root->save();
 
-        this->root = root;
-	}
+        	this->stat->set_root_id(root->get_id());
+        	uint temp_height= this->stat->get_height() + 1;
+        	this->stat->set_height(temp_height);
+        	this->stat->save();
+
+        	this->root = root;
+	  }
 
 }
 //recursively insert
@@ -166,9 +175,12 @@ Insertion BTreeIndex::_insert(BTreeNode *node, uint height, const KeyValue* key,
     return insertion;
 }
 
+//Tkey will extract value of Value dictionary then appened it to Key value.
+
 KeyValue *BTreeIndex::tkey(const ValueDict *key) const {
     KeyValue* keyValue = new KeyValue();
     //get Value from key
+   
     for(auto const& col: this->key_columns){
 
         keyValue->push_back(key->at(col));
@@ -231,7 +243,7 @@ bool test_btree(){
     ColumnNames columnNames2;
     columnNames2.push_back(colNames.at(0));
 
-
+    // testing for result 4
     for (uint i = 0; i < 1000; i++) {
         ValueDict *row = new ValueDict();
         (*row)["a"] = Value(i + 100);
@@ -325,7 +337,7 @@ bool test_btree(){
                 if ((*row_proj)["a"] == (*result_4)["a"] && (*row_proj)["b"] == (*result_4)["b"]) {
                     result = true;
                     delete  row_proj;
-                    break;
+	            break;
                 }
                 else{
                     result = false;
